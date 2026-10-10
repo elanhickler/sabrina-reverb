@@ -4,43 +4,24 @@ CLAP-first (VST3/AUv2 via clap-wrapper) stereo reverb plugin for Soundemote.
 
 Built from [`baconpaul/sidequest-startingpoint`](https://github.com/baconpaul/sidequest-startingpoint).
 
-DSP is the sandbox native module (same as `reverbEffect` / `sabrina_reverb.wasm`).
-Loose, readable copies of Walter's original VST and the soemdsp delay/reverb
-library live in [`reference/`](reference/) — they are **not** compiled into the
-plugin.
-
 ```text
 reference/
   README.md
   walter-original-vst/     Sabrina.cpp / Sabrina.h  (Walter's original VST)
   soemdsp-delay/           ModulatedDelay + Reverb   (soemdsp library)
-
-soemdsp-sandbox/native_modules/sabrina_reverb/
-  sabrina_reverb.cpp       <- plugin links this
-  sabrina_reverb.wasm
-  originalcode/            same VST sources as reference/walter-original-vst
-```
-
-Host parameters match the sandbox `reverbEffect` control scheme, including
-**Mod Style: Parabol / FBM**.
-
-```text
-sabrina-reverb-clap   -> DAW plugin shell (this repo)
-soemdsp-sandbox       -> Sabrina DSP + control surface (required sibling)
 ```
 
 ## Readable DSP
 
-Want the algorithm as C++ you can sit down and read? Start here:
+Start here:
 
 | Path | What it is |
 | --- | --- |
 | [`reference/walter-original-vst/`](reference/walter-original-vst/) | Walter's original Sabrina VST (`Sabrina.cpp`, `Sabrina.h`) |
-| [`reference/soemdsp-delay/`](reference/soemdsp-delay/) | soemdsp `ModulatedDelay` + `Reverb` (library, not the plugin kernel) |
+| [`reference/soemdsp-delay/`](reference/soemdsp-delay/) | soemdsp `ModulatedDelay` + `Reverb` |
 | [`reference/README.md`](reference/README.md) | How these relate to the shipping DSP |
 
-The plugin **does not compile** those files. The live kernel is the sibling
-sandbox module `sabrina_reverb.cpp`.
+The plugin **does not compile** those files.soemd
 
 ## Layout on disk
 
