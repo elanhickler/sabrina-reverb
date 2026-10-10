@@ -21,8 +21,9 @@ juce::Font monoFont(float height)
 }
 } // namespace
 
-SabrinaSlider::SabrinaSlider(PluginEditor &e, uint32_t paramId, juce::String unitText)
-    : editor(e), unit(std::move(unitText))
+SabrinaSlider::SabrinaSlider(PluginEditor &e, uint32_t paramId, juce::String unitText,
+                             juce::String faceLabelText)
+    : editor(e), unit(std::move(unitText)), faceLabel(std::move(faceLabelText))
 {
     source = std::make_unique<PatchContinuous>(e, paramId);
     e.componentRefreshByID[paramId] = [this]() { repaint(); };
@@ -157,9 +158,22 @@ void SabrinaSlider::paint(juce::Graphics &g)
     if (unit.isNotEmpty())
         valueText += " " + unit;
 
+    juce::String label = faceLabel.isNotEmpty() ? faceLabel : juce::String(source->getLabel());
     g.setColour(kLabel);
     g.setFont(monoFont(text.getHeight() * 0.43f));
-    g.drawText(source->getLabel(), text, juce::Justification::centredLeft, false);
+    if (label.containsChar('\n'))
+    {
+        auto line1 = label.upToFirstOccurrenceOf("\n", false, false);
+        auto line2 = label.fromFirstOccurrenceOf("\n", false, false);
+        auto top = text.withHeight(text.getHeight() * 0.5f);
+        auto bottom = text.withY(top.getBottom()).withHeight(text.getHeight() * 0.5f);
+        g.drawText(line1, top, juce::Justification::centredLeft, false);
+        g.drawText(line2, bottom, juce::Justification::centredLeft, false);
+    }
+    else
+    {
+        g.drawText(label, text, juce::Justification::centredLeft, false);
+    }
 
     g.setColour(kValue);
     g.setFont(monoFont(text.getHeight() * 0.645f)); // 75% of original 0.86
@@ -331,24 +345,25 @@ SabrinaFace::SabrinaFace(PluginEditor &e) : editor(e)
     {
         uint32_t id;
         const char *unit;
+        const char *faceLabel;
     };
-    // Sandbox reverbEffect face order (Mod Style + Seed included).
     const Row rows[] = {
-        {e.patchCopy.sabrina.mix.meta.id, ""},
-        {e.patchCopy.sabrina.diffusionSize.meta.id, ""},
-        {e.patchCopy.sabrina.diffusionAmount.meta.id, ""},
-        {e.patchCopy.sabrina.delaySize.meta.id, ""},
-        {e.patchCopy.sabrina.recycle.meta.id, ""},
-        {e.patchCopy.sabrina.lfoAmplitude.meta.id, ""},
-        {e.patchCopy.sabrina.lfoBaseSpeed.meta.id, ""},
-        {e.patchCopy.sabrina.lfoVariation.meta.id, ""},
-        {e.patchCopy.sabrina.lfoStyle.meta.id, ""},
-        {e.patchCopy.sabrina.seed.meta.id, ""},
-        {e.patchCopy.sabrina.amplitude.meta.id, ""},
+        {e.patchCopy.sabrina.mix.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.diffusionSize.meta.id, "", "Diffusion\nSize"},
+        {e.patchCopy.sabrina.diffusionAmount.meta.id, "", "Diffusion\nAmount"},
+        {e.patchCopy.sabrina.delaySize.meta.id, "", "Delay\nTime"},
+        {e.patchCopy.sabrina.recycle.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.lfoAmplitude.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.lfoBaseSpeed.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.lfoVariation.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.lfoStyle.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.seed.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.amplitude.meta.id, "", nullptr},
     };
     for (auto &row : rows)
     {
-        sliders.push_back(std::make_unique<SabrinaSlider>(e, row.id, row.unit));
+        sliders.push_back(std::make_unique<SabrinaSlider>(
+            e, row.id, row.unit, row.faceLabel ? juce::String(row.faceLabel) : juce::String()));
         addAndMakeVisible(*sliders.back());
     }
 }

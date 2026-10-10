@@ -23,8 +23,10 @@ struct SabrinaSlider : juce::Component, juce::TextEditor::Listener
     PluginEditor &editor;
     std::unique_ptr<PatchContinuous> source;
     juce::String unit;
+    juce::String faceLabel;
 
-    SabrinaSlider(PluginEditor &e, uint32_t paramId, juce::String unitText);
+    SabrinaSlider(PluginEditor &e, uint32_t paramId, juce::String unitText,
+                  juce::String faceLabelText = {});
     void paint(juce::Graphics &g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent &e) override;

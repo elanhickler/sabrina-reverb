@@ -1,4 +1,4 @@
-Nightly build of **Sabrina Reverb** (Soundemote).
+Nightly build of **Sabrina Reverb**.
 
-CLAP / VST3 / standalone scaffold from baconpaul sidequest-startingpoint,
-DSP from soemdsp `delay::Reverb`.
+DSP: MIT, original Sabrina reverb by Walter Hackett.
+UI: AGPLv3 via JUCE (plugin editor only; DSP stays MIT).
