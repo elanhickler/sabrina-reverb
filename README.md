@@ -8,11 +8,6 @@ KVR thread: https://www.kvraudio.com/forum/viewtopic.php?p=9309297
 
 Built from [`baconpaul/sidequest-startingpoint`](https://github.com/baconpaul/sidequest-startingpoint).
 
-DSP is vendored in [`dsp/sabrina_reverb.cpp`](dsp/sabrina_reverb.cpp) (same kernel
-as sandbox `reverbEffect`). Walter's original VST is in
-[`reference/walter-original-vst/`](reference/walter-original-vst/) for reading.
-The object-oriented port lives in [soemdsp](https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay) — not duplicated here.
-
 ```text
 dsp/sabrina_reverb.cpp             <- plugin compiles this
 dsp/include/soemdsp/               math headers the kernel needs
