@@ -27,7 +27,7 @@ constexpr double kParamSmoothSeconds = 0.05;
 // AudioWorklet render quantum with a large safety margin.
 constexpr int kMaxBlockFrames = 2048;
 
-bool finite(double value) {
+bool is_finite(double value) {
   return value == value && value > -1.0e12 && value < 1.0e12;
 }
 
@@ -192,24 +192,24 @@ double sabrinaModUni(SabrinaDelay& delay) {
 }
 
 double delaySample(SabrinaDelay& delay, double input) {
-  const double safeInput = finite(input) ? input : 0.0;
+  const double safeInput = is_finite(input) ? input : 0.0;
   const double lfo = sabrinaModUni(delay);
   const double readPosition = delay.driver - delay.offset - delay.offset * lfo * delay.lfopercent;
   delay.driver = (delay.driver + 1) % kMaxDelaySamples;
   const double delayed = readDelay(delay, readPosition);
   delay.buffer[delay.driver] = static_cast<float>(safeInput);
-  return finite(delayed) ? delayed : 0.0;
+  return is_finite(delayed) ? delayed : 0.0;
 }
 
 double diffuseSample(SabrinaDelay& delay, double input) {
-  const double safeInput = finite(input) ? input : 0.0;
+  const double safeInput = is_finite(input) ? input : 0.0;
   const double lfo = sabrinaModUni(delay);
   const double readPosition = delay.driver - delay.offset - delay.offset * lfo * delay.lfopercent;
   delay.driver = (delay.driver + 1) % kMaxDelaySamples;
   const double delayed = readDelay(delay, readPosition);
   delay.buffer[delay.driver] = static_cast<float>(clamp((0.0 - safeInput) - delayed * delay.feedback, -16.0, 16.0));
   const double output = safeInput * delay.feedback - delayed * (1.0 - delay.feedback * delay.feedback);
-  return finite(output) ? output : 0.0;
+  return is_finite(output) ? output : 0.0;
 }
 
 // SIMD kernel: vectorized parabol(), one f64x2 lane per stereo channel.
@@ -258,8 +258,8 @@ void sabrinaModUniPair(SabrinaDelay& delayL, SabrinaDelay& delayR, double& lfoL,
 }
 
 void delaySamplePairSimd(SabrinaDelay& delayL, SabrinaDelay& delayR, double inputL, double inputR, double& outL, double& outR) {
-  const double safeInputL = finite(inputL) ? inputL : 0.0;
-  const double safeInputR = finite(inputR) ? inputR : 0.0;
+  const double safeInputL = is_finite(inputL) ? inputL : 0.0;
+  const double safeInputR = is_finite(inputR) ? inputR : 0.0;
 
   double lfoL = 0.0;
   double lfoR = 0.0;
@@ -280,13 +280,13 @@ void delaySamplePairSimd(SabrinaDelay& delayL, SabrinaDelay& delayR, double inpu
   delayL.buffer[delayL.driver] = static_cast<float>(safeInputL);
   delayR.buffer[delayR.driver] = static_cast<float>(safeInputR);
 
-  outL = finite(delayedL) ? delayedL : 0.0;
-  outR = finite(delayedR) ? delayedR : 0.0;
+  outL = is_finite(delayedL) ? delayedL : 0.0;
+  outR = is_finite(delayedR) ? delayedR : 0.0;
 }
 
 void diffuseSamplePairSimd(SabrinaDelay& delayL, SabrinaDelay& delayR, double inputL, double inputR, double& outL, double& outR) {
-  const double safeInputL = finite(inputL) ? inputL : 0.0;
-  const double safeInputR = finite(inputR) ? inputR : 0.0;
+  const double safeInputL = is_finite(inputL) ? inputL : 0.0;
+  const double safeInputR = is_finite(inputR) ? inputR : 0.0;
 
   double lfoL = 0.0;
   double lfoR = 0.0;
@@ -321,8 +321,8 @@ void diffuseSamplePairSimd(SabrinaDelay& delayL, SabrinaDelay& delayR, double in
   delayL.buffer[delayL.driver] = static_cast<float>(writeLanes[0]);
   delayR.buffer[delayR.driver] = static_cast<float>(writeLanes[1]);
 
-  outL = finite(outputLanes[0]) ? outputLanes[0] : 0.0;
-  outR = finite(outputLanes[1]) ? outputLanes[1] : 0.0;
+  outL = is_finite(outputLanes[0]) ? outputLanes[0] : 0.0;
+  outR = is_finite(outputLanes[1]) ? outputLanes[1] : 0.0;
 }
 
 // Re-derives every delay line's random offset/modulation phase from a single
@@ -505,8 +505,8 @@ void advanceSabrinaSmoothing(SabrinaState& state) {
 // live per-sample API since that was switched to the paired kernels).
 void sabrinaProcessBlockScalar(SabrinaState& state, const double* leftIn, const double* rightIn, double* leftOut, double* rightOut, int frameCount) {
   for (int frame = 0; frame < frameCount; frame += 1) {
-    const double dryLeft = finite(leftIn[frame]) ? leftIn[frame] : 0.0;
-    const double dryRight = finite(rightIn[frame]) ? rightIn[frame] : dryLeft;
+    const double dryLeft = is_finite(leftIn[frame]) ? leftIn[frame] : 0.0;
+    const double dryRight = is_finite(rightIn[frame]) ? rightIn[frame] : dryLeft;
     if (sabrinaIdleFromPorts(state, dryLeft, dryRight)) {
       leftOut[frame] = state.lastLeft;
       rightOut[frame] = state.lastRight;
@@ -525,8 +525,8 @@ void sabrinaProcessBlockScalar(SabrinaState& state, const double* leftIn, const 
       left = outLeft;
       right = outRight;
     }
-    state.ch0 = finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
-    state.ch1 = finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+    state.ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
+    state.ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
     const double mixLeft = state.ch0 * state.mix + dryLeft * (1.0 - state.mix);
     const double mixRight = state.ch1 * state.mix + dryRight * (1.0 - state.mix);
     state.lastLeft = mixLeft;
@@ -542,8 +542,8 @@ void sabrinaProcessBlockScalar(SabrinaState& state, const double* leftIn, const 
 // already uses live, per sample.
 void sabrinaProcessBlockSimd(SabrinaState& state, const double* leftIn, const double* rightIn, double* leftOut, double* rightOut, int frameCount) {
   for (int frame = 0; frame < frameCount; frame += 1) {
-    const double dryLeft = finite(leftIn[frame]) ? leftIn[frame] : 0.0;
-    const double dryRight = finite(rightIn[frame]) ? rightIn[frame] : dryLeft;
+    const double dryLeft = is_finite(leftIn[frame]) ? leftIn[frame] : 0.0;
+    const double dryRight = is_finite(rightIn[frame]) ? rightIn[frame] : dryLeft;
     if (sabrinaIdleFromPorts(state, dryLeft, dryRight)) {
       leftOut[frame] = state.lastLeft;
       rightOut[frame] = state.lastRight;
@@ -562,8 +562,8 @@ void sabrinaProcessBlockSimd(SabrinaState& state, const double* leftIn, const do
       left = outLeft;
       right = outRight;
     }
-    state.ch0 = finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
-    state.ch1 = finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+    state.ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
+    state.ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
     const double mixLeft = state.ch0 * state.mix + dryLeft * (1.0 - state.mix);
     const double mixRight = state.ch1 * state.mix + dryRight * (1.0 - state.mix);
     state.lastLeft = mixLeft;
@@ -697,8 +697,8 @@ extern "C" void soemdsp_sabrina_reverb_process(int handle, double leftInput, dou
   if (!state) {
     return;
   }
-  const double dryLeft = finite(leftInput) ? leftInput : 0.0;
-  const double dryRight = finite(rightInput) ? rightInput : dryLeft;
+  const double dryLeft = is_finite(leftInput) ? leftInput : 0.0;
+  const double dryRight = is_finite(rightInput) ? rightInput : dryLeft;
   if (sabrinaIdleFromPorts(*state, dryLeft, dryRight)) {
     return;
   }
@@ -719,8 +719,8 @@ extern "C" void soemdsp_sabrina_reverb_process(int handle, double leftInput, dou
     left = outLeft;
     right = outRight;
   }
-  state->ch0 = finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
-  state->ch1 = finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+  state->ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
+  state->ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
   state->lastLeft = state->ch0 * state->mix + dryLeft * (1.0 - state->mix);
   state->lastRight = state->ch1 * state->mix + dryRight * (1.0 - state->mix);
   state->lastWet = (state->ch0 + state->ch1) * 0.5;
