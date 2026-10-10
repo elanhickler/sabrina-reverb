@@ -368,23 +368,22 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
         auto res = std::make_unique<baconpaul::sidequest_ns::ui::PluginEditor>(
             engine->audioToUi, engine->mainToAudio, _host.host());
 
-        res->onZoomChanged = [this](auto f)
+        res->onZoomChanged = [this, ed = res.get()](auto)
         {
-            if (_host.canUseGui() && clapJuceShim->isEditorAttached())
+            if (_host.canUseGui() && clapJuceShim->isEditorAttached() && ed)
             {
-                // SQLOG("onZoomChanged " << f);
-                auto s = f * clapJuceShim->getGuiScale();
-                guiSetSize(baconpaul::sidequest_ns::ui::PluginEditor::edWidth * s,
-                           baconpaul::sidequest_ns::ui::PluginEditor::edHeight * s);
-                _host.guiRequestResize(baconpaul::sidequest_ns::ui::PluginEditor::edWidth * s,
-                                       baconpaul::sidequest_ns::ui::PluginEditor::edHeight * s);
+                const uint32_t w = (uint32_t)ed->getWidth();
+                const uint32_t h = (uint32_t)ed->getHeight();
+                guiSetSize(w, h);
+                _host.guiRequestResize(w, h);
             }
         };
 
         onShow = [e = res.get()]()
         {
-            // SQLOG("onShow with zoom factor " << e->zoomFactor);
-            e->setZoomFactor(e->zoomFactor);
+            if (e)
+                e->setSize(e->px((int)baconpaul::sidequest_ns::ui::PluginEditor::edWidth),
+                           e->px((int)baconpaul::sidequest_ns::ui::PluginEditor::edHeight));
             return true;
         };
         // res->sneakyStartupGrabFrom(engine->patch);

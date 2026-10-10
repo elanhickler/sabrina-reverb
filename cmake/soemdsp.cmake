@@ -1,16 +1,9 @@
-# Compile the sandbox Sabrina Reverb native module (same DSP as soemdsp-sandbox
-# reverbEffect / sabrina_reverb.wasm). Original VST reference lives beside it at
-# native_modules/sabrina_reverb/originalcode/.
+# Vendored Sabrina kernel (dsp/sabrina_reverb.cpp + dsp/include/soemdsp).
+# No soemdsp-sandbox checkout required.
 
-set(SOEMDSP_SANDBOX "${CMAKE_SOURCE_DIR}/../soemdsp-sandbox" CACHE PATH
-    "Path to soundemote/soemdsp-sandbox")
-
-set(SABRINA_SRC "${SOEMDSP_SANDBOX}/native_modules/sabrina_reverb/sabrina_reverb.cpp")
+set(SABRINA_SRC "${CMAKE_SOURCE_DIR}/dsp/sabrina_reverb.cpp")
 if (NOT EXISTS "${SABRINA_SRC}")
-    message(FATAL_ERROR
-        "sabrina_reverb.cpp not found at ${SABRINA_SRC}. "
-        "Clone https://github.com/soundemote/soemdsp-sandbox next to this repo, "
-        "or pass -DSOEMDSP_SANDBOX=...")
+    message(FATAL_ERROR "dsp/sabrina_reverb.cpp missing")
 endif()
 
 add_library(soemdsp-sabrina STATIC "${SABRINA_SRC}")
@@ -53,7 +46,7 @@ target_link_libraries(soemdsp-plugin-support PUBLIC
 target_include_directories(soemdsp-sabrina PUBLIC
     "${CMAKE_SOURCE_DIR}/runtime"
     "${CMAKE_SOURCE_DIR}/runtime/wasm_simd128_shim"
-    "${SOEMDSP_SANDBOX}/library/include"
+    "${CMAKE_SOURCE_DIR}/dsp/include"
 )
 
 target_compile_definitions(soemdsp-sabrina PUBLIC NOMINMAX)

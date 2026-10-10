@@ -74,8 +74,9 @@ PluginEditor::PluginEditor(Engine::audioToUIQueue_t &atou, Engine::mainToAudioQu
 
     auto pzf = defaultsProvider->getUserDefaultValue(Defaults::zoomLevel, 100);
     zoomFactor = pzf * 0.01f;
-    setSize((int)std::lround((float)edWidth * zoomFactor),
-            (int)std::lround((float)edHeight * zoomFactor));
+    screenSize = juce::jlimit(1, 5, defaultsProvider->getUserDefaultValue(Defaults::screenSize, 2));
+    setTransform({});
+    setSize(px((int)edWidth), px((int)edHeight));
 #define DEBUG_FOCUS 0
 #if DEBUG_FOCUS
     focusDebugger = std::make_unique<sst::jucegui::accessibility::FocusDebugger>(*this);
@@ -382,19 +383,31 @@ void PluginEditor::setSkinFromDefaults()
 void PluginEditor::setZoomFactor(float zf)
 {
     zoomFactor = juce::jlimit(0.5f, 3.f, zf);
-    setSize((int)std::lround((float)edWidth * zoomFactor),
-            (int)std::lround((float)edHeight * zoomFactor));
-    defaultsProvider->updateUserDefaultValue(Defaults::zoomLevel, (int)std::lround(zoomFactor * 100.f));
+    setTransform({});
+    setSize(px((int)edWidth), px((int)edHeight));
+    defaultsProvider->updateUserDefaultValue(Defaults::zoomLevel,
+                                             juce::roundToInt(zoomFactor * 100.f));
+    if (mainPanel && mainPanel->face)
+        mainPanel->face->resized();
     if (onZoomChanged)
         onZoomChanged(zoomFactor);
+}
+
+void PluginEditor::setScreenSize(int titleHeights)
+{
+    screenSize = juce::jlimit(1, 5, titleHeights);
+    defaultsProvider->updateUserDefaultValue(Defaults::screenSize, screenSize);
+    if (mainPanel && mainPanel->face)
+        mainPanel->face->resized();
 }
 
 void PluginEditor::showUiSizeMenu()
 {
     juce::PopupMenu menu;
     menu.addSectionHeader("UI Size");
-    menu.addItem("Reset to 100%  (320 x 640)", true, std::fabs(zoomFactor - 1.f) < 0.02f,
-                 [this]() { setZoomFactor(1.f); });
+    menu.addItem("Reset to 100%  (" + std::to_string(edWidth) + " x " + std::to_string(edHeight) +
+                     ")",
+                 true, std::fabs(zoomFactor - 1.f) < 0.02f, [this]() { setZoomFactor(1.f); });
     menu.addSeparator();
     for (int scale : {75, 90, 100, 110, 125, 150, 200})
     {
@@ -405,7 +418,17 @@ void PluginEditor::showUiSizeMenu()
                          ")",
                      true, ticked, [this, scale]() { setZoomFactor(scale * 0.01f); });
     }
-    menu.showMenuAsync(juce::PopupMenu::Options().withParentComponent(this));
+
+    menu.addSeparator();
+    menu.addSectionHeader("Screen size");
+    for (int n = 1; n <= 5; ++n)
+    {
+        const auto label = std::to_string(n) + (n == 1 ? " title height" : " title heights") +
+                           (n == 2 ? "  (default)" : "");
+        menu.addItem(label, true, screenSize == n, [this, n]() { setScreenSize(n); });
+    }
+    // Desktop popup — not parented to the editor, so UI size does not scale the menu.
+    menu.showMenuAsync(juce::PopupMenu::Options());
 }
 
 void PluginEditor::requestParamsFlush()

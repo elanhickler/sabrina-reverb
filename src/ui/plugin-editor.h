@@ -91,12 +91,16 @@ struct PluginEditor : jcmp::WindowPanel
     bool keyPressed(const juce::KeyPress &key) override;
 
     void setZoomFactor(float zf);
+    void setScreenSize(int titleHeights);
     void showUiSizeMenu();
     float zoomFactor{1.0f};
+    int screenSize{2}; // display height in title-bar heights, 1..5
+    int px(int native) const { return juce::roundToInt((float)native * zoomFactor); }
+    float px(float native) const { return native * zoomFactor; }
     std::function<void(float)> onZoomChanged{nullptr};
     bool toggleDebug();
 
-    static constexpr uint32_t edWidth{320}, edHeight{640};
+    static constexpr uint32_t edWidth{250}, edHeight{500};
 
     void visibilityChanged() override;
     void parentHierarchyChanged() override;

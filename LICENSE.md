@@ -9,8 +9,8 @@ The reverb itself is MIT. Copyright (c) Walter Hackett.
 That covers:
 
 - the original Sabrina algorithm (`reference/walter-original-vst/`)
-- the shipping native kernel (`soemdsp-sandbox` `sabrina_reverb.cpp`, linked by this plugin)
-- soemdsp delay / reverb library copies (`reference/soemdsp-delay/`)
+- the shipping native kernel (`dsp/sabrina_reverb.cpp`)
+- soemdsp delay / reverb library (in [soundemote/soemdsp](https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay), not copied here)
 
 You may take those DSP sources under MIT without taking the UI.
 

@@ -2,8 +2,7 @@
 
 #include <stdint.h>
 
-// C ABI from soemdsp-sandbox native_modules/sabrina_reverb/sabrina_reverb.cpp
-// (sandbox reverbEffect). Keep in sync with that module.
+// C ABI from dsp/sabrina_reverb.cpp (vendored sandbox kernel).
 
 #ifdef __cplusplus
 extern "C" {

@@ -2,13 +2,21 @@
 
 CLAP-first (VST3/AUv2 via clap-wrapper) stereo reverb plugin for Soundemote.
 
+Walter's original code: https://github.com/soundemote/sabrina-reverb/tree/main/reference/walter-original-vst  
+Soundemote's object oriented port: https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay  
+KVR thread: https://www.kvraudio.com/forum/viewtopic.php?p=9309297
+
 Built from [`baconpaul/sidequest-startingpoint`](https://github.com/baconpaul/sidequest-startingpoint).
 
+DSP is vendored in [`dsp/sabrina_reverb.cpp`](dsp/sabrina_reverb.cpp) (same kernel
+as sandbox `reverbEffect`). Walter's original VST is in
+[`reference/walter-original-vst/`](reference/walter-original-vst/) for reading.
+The object-oriented port lives in [soemdsp](https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay) — not duplicated here.
+
 ```text
-reference/
-  README.md
-  walter-original-vst/     Sabrina.cpp / Sabrina.h  (Walter's original VST)
-  soemdsp-delay/           ModulatedDelay + Reverb   (soemdsp library)
+dsp/sabrina_reverb.cpp             <- plugin compiles this
+dsp/include/soemdsp/               math headers the kernel needs
+reference/walter-original-vst/     Sabrina.cpp / Sabrina.h  (Walter's original VST)
 ```
 
 ## Readable DSP
@@ -18,15 +26,16 @@ Start here:
 | Path | What it is |
 | --- | --- |
 | [`reference/walter-original-vst/`](reference/walter-original-vst/) | Walter's original Sabrina VST (`Sabrina.cpp`, `Sabrina.h`) |
-| [`reference/soemdsp-delay/`](reference/soemdsp-delay/) | soemdsp `ModulatedDelay` + `Reverb` |
+| [soemdsp `delay/`](https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay) | Soundemote OOP port (`ModulatedDelay`, `Reverb`) |
 | [`reference/README.md`](reference/README.md) | How these relate to the shipping DSP |
 
-The plugin **does not compile** those files.soemd
+The plugin **does not compile** those reference files. The live kernel is
+[`dsp/sabrina_reverb.cpp`](dsp/sabrina_reverb.cpp).
 
 ## Layout on disk
 
-Clone this repo next to `soemdsp-sandbox` (required, or `-DSOEMDSP_SANDBOX=`).
-`soemdsp` is optional (Parameter stack + delay/reverb library).
+`soemdsp-sandbox` is **not** required. Clone `soemdsp` next to this repo
+(or pass `-DSOEMDSP_ROOT=`) for the Parameter / plugin headers.
 
 ## Build (Windows)
 
@@ -55,10 +64,10 @@ Artifacts land under `build/sabrina-reverb-clap_assets/`.
 
 ## Status
 
-Scaffold: sidequest template renamed, stereo audio I/O, sandbox
-`sabrina_reverb.cpp` linked, sandbox control surface including FBM.
-UI is still the generic knob grid. Voice/synth scaffolding remains
-in-tree but is unused on the audio path.
+Stereo effect plugin. DSP is `dsp/sabrina_reverb.cpp` (Parabol / FBM).
+UI is the sandbox-style module face (title, waterfall, full-width sliders),
+not the SideQuest knob grid. Synth `Voice` files are still in the tree and
+unused on the audio path.
 
 ## License
 

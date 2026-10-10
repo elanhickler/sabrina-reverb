@@ -95,7 +95,7 @@ void SabrinaSlider::startTypeIn()
 {
     cancelTypeIn();
     typeIn = std::make_unique<juce::TextEditor>();
-    typeIn->setFont(monoFont(9.75f));
+    typeIn->setFont(monoFont(editor.px((float)kValueFontPx)));
     typeIn->setJustification(juce::Justification::centredLeft);
     typeIn->setColour(juce::TextEditor::backgroundColourId, kFaceBg);
     typeIn->setColour(juce::TextEditor::textColourId, kValue);
@@ -143,16 +143,17 @@ void SabrinaSlider::paint(juce::Graphics &g)
 {
     auto r = getLocalBounds().toFloat();
     g.setColour(kFaceBg);
-    g.fillRoundedRectangle(r, 3.f);
+    g.fillRoundedRectangle(r, editor.px(3.f));
 
     auto t = value01();
     auto fill = r.withWidth(r.getWidth() * t);
     g.setColour(kAmount);
     g.fillRect(fill);
     g.setColour(kPosition);
-    g.fillRect(fill.withX(fill.getRight() - 2.f).withWidth(2.f));
+    const float bar = editor.px(2.f);
+    g.fillRect(fill.withX(fill.getRight() - bar).withWidth(bar));
 
-    auto text = r.withTrimmedLeft(6.f).withTrimmedRight(6.f);
+    auto text = r.withTrimmedLeft(editor.px(kTextPadPx)).withTrimmedRight(editor.px(kTextPadPx));
 
     juce::String valueText(source->getValueAsString());
     if (unit.isNotEmpty())
@@ -160,7 +161,7 @@ void SabrinaSlider::paint(juce::Graphics &g)
 
     juce::String label = faceLabel.isNotEmpty() ? faceLabel : juce::String(source->getLabel());
     g.setColour(kLabel);
-    g.setFont(monoFont(text.getHeight() * 0.43f));
+    g.setFont(monoFont(editor.px((float)kLabelFontPx)));
     if (label.containsChar('\n'))
     {
         auto line1 = label.upToFirstOccurrenceOf("\n", false, false);
@@ -176,7 +177,7 @@ void SabrinaSlider::paint(juce::Graphics &g)
     }
 
     g.setColour(kValue);
-    g.setFont(monoFont(text.getHeight() * 0.645f)); // 75% of original 0.86
+    g.setFont(monoFont(editor.px((float)kValueFontPx)));
     g.drawText(valueText, text, juce::Justification::centredRight, false);
 }
 
@@ -312,13 +313,10 @@ void SabrinaTitleBar::paint(juce::Graphics &g)
     g.fillRect(bounds);
 
     const juce::String title{PRODUCT_NAME};
-    const float byHeight = bounds.getHeight() * 0.86f;
-    const float byWidth =
-        title.isEmpty() ? byHeight
-                        : bounds.getWidth() / (float)juce::jmax(1, title.length()) / 0.62f;
+    const float titlePx = editor ? editor->px((float)kTitleFontPx) : (float)kTitleFontPx;
     g.setColour(juce::Colour(0xc2f3f1ec));
-    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),
-                                           juce::jmin(byHeight, byWidth), juce::Font::plain)));
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), titlePx,
+                                           juce::Font::plain)));
     g.drawText(title, getLocalBounds(), juce::Justification::centred, false);
 }
 
@@ -379,9 +377,10 @@ void SabrinaFace::pushPeaks(float left, float right)
 void SabrinaFace::resized()
 {
     auto r = getLocalBounds();
-    titleBar.setBounds(r.removeFromTop(34));
-    auto displayH = juce::jmax(72, r.getHeight() / 3);
-    waterfall.setBounds(r.removeFromTop(displayH));
+    const int titleH = editor.px(kTitleBarHeight);
+    titleBar.setBounds(r.removeFromTop(titleH));
+    const int displayH = titleH * juce::jlimit(1, 5, editor.screenSize);
+    waterfall.setBounds(r.removeFromTop(juce::jmin(displayH, r.getHeight())));
     if (sliders.empty())
         return;
     auto rowH = r.getHeight() / (int)sliders.size();

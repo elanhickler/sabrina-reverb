@@ -10,6 +10,11 @@
 
 namespace baconpaul::sidequest_ns::ui
 {
+static constexpr int kTitleBarHeight{34};
+static constexpr int kLabelFontPx{11};
+static constexpr int kValueFontPx{16};
+static constexpr int kTitleFontPx{20};
+static constexpr int kTextPadPx{6};
 
 // Sandbox-style module slider: full width, label / number / unit, amount fill.
 // Modifiers match soemdsp-sandbox node-graph-slider-dragging.js:

@@ -25,6 +25,7 @@ enum Defaults
 {
     useLightSkin,
     zoomLevel,
+    screenSize,          // display height in title-bar units, 1..5, default 2
     useSoftwareRenderer, // only used on windows
     numDefaults
 };
@@ -37,6 +38,8 @@ inline std::string defaultName(Defaults d)
         return "useLightSkin";
     case zoomLevel:
         return "zoomLevel";
+    case screenSize:
+        return "screenSize";
     case useSoftwareRenderer:
         return "useSoftwareRenderer";
     case numDefaults:
