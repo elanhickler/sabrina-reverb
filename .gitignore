@@ -1,5 +1,4 @@
 build/
-deps/
 .DS_Store
 .idea/
 .vs/

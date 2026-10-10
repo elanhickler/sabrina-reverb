@@ -9,17 +9,12 @@ endif()
 add_library(soemdsp-sabrina STATIC "${SABRINA_SRC}")
 add_library(soemdsp::sabrina ALIAS soemdsp-sabrina)
 
-if (EXISTS "${CMAKE_SOURCE_DIR}/deps/soemdsp/include/soemdsp/plugin/Parameter.hpp")
-    set(_soemdsp_default "${CMAKE_SOURCE_DIR}/deps/soemdsp")
-else()
-    set(_soemdsp_default "${CMAKE_SOURCE_DIR}/../soemdsp")
-endif()
-set(SOEMDSP_ROOT "${_soemdsp_default}" CACHE PATH "Path to soundemote/soemdsp")
+set(SOEMDSP_ROOT "${CMAKE_SOURCE_DIR}/libs/soemdsp" CACHE PATH "Path to soundemote/soemdsp")
 if (NOT EXISTS "${SOEMDSP_ROOT}/include/soemdsp/plugin/Parameter.hpp")
     message(FATAL_ERROR
         "soemdsp plugin headers not found at ${SOEMDSP_ROOT}. "
-        "Clone https://github.com/soundemote/soemdsp next to this repo, "
-        "or pass -DSOEMDSP_ROOT=...")
+        "This repo vendors soemdsp as a git submodule: "
+        "git submodule update --init --recursive")
 endif()
 
 include(FetchContent)

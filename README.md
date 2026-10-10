@@ -29,8 +29,12 @@ The plugin **does not compile** those reference files. The live kernel is
 
 ## Layout on disk
 
-`soemdsp-sandbox` is **not** required. Clone `soemdsp` next to this repo
-(or pass `-DSOEMDSP_ROOT=`) for the Parameter / plugin headers.
+No extra Soundemote repos to clone. `soemdsp` is a git submodule at
+`libs/soemdsp` (Parameter / plugin headers). Init with:
+
+```powershell
+git submodule update --init --recursive
+```
 
 ## Build (Windows)
 

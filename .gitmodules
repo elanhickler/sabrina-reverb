@@ -46,3 +46,6 @@
 [submodule "libs/sst/sst-jucegui"]
 	path = libs/sst/sst-jucegui
 	url = https://github.com/surge-synthesizer/sst-jucegui
+[submodule "libs/soemdsp"]
+	path = libs/soemdsp
+	url = https://github.com/soundemote/soemdsp.git
