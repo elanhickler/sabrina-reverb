@@ -82,7 +82,7 @@ jobs:
           pushd build/${TARGET_NAME}_assets
           ls -al
 
-          7z a -r ../inst/${TARGET_NAME}-windows-${{ matrix.installer_name }}`date +"%Y-%m-%d"`-`git rev-parse --short HEAD`.zip *
+          7z a -r ../inst/Sabrina-Reverb-windows.zip *
 
       - name: Make Mac zip
         if: github.event_name != 'pull_request' && runner.os == 'macOS'
@@ -91,7 +91,7 @@ jobs:
           cp LICENSE.md build/${TARGET_NAME}_assets
           cp resources/ReadmeZip.txt build/${TARGET_NAME}_assets
           pushd build/${TARGET_NAME}_assets
-          zip -r ../inst/${TARGET_NAME}-macos-`date +"%Y-%m-%d"`-`git rev-parse --short HEAD`.zip .
+          zip -r ../inst/Sabrina-Reverb-macos.zip .
 
       - name: Upload artifact
         if: github.event_name != 'pull_request' && runner.os != 'Linux'  # We get this through docker
@@ -131,7 +131,7 @@ jobs:
           pushd build/${TARGET_NAME}_assets
           ls -al
 
-          tar cvzf ../inst/${TARGET_NAME}-linux-`date +"%Y-%m-%d"`-`git rev-parse --short HEAD`.tgz .
+          tar cvzf ../inst/Sabrina-Reverb-linux.tgz .
 
       - name: Show Installer Directory
         run: |
