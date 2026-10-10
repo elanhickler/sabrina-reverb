@@ -23,6 +23,19 @@ option(BUILD_SINGLE_ONLY "Only build the one plugin - no seven sines out" FALSE)
 
 include(cmake/compile-options.cmake)
 
+# GitHub MSVC rejects `enum Nested::ValueType` in sst-plugininfra userdefaults.h
+set(_sst_ud "${CMAKE_SOURCE_DIR}/libs/sst/sst-plugininfra/include/sst/plugininfra/userdefaults.h")
+if (EXISTS "${_sst_ud}")
+    file(READ "${_sst_ud}" _sst_ud_txt)
+    if (_sst_ud_txt MATCHES "enum UserDefaultValue::ValueType")
+        string(REPLACE
+            "v.type = (enum UserDefaultValue::ValueType)vt;"
+            "v.type = static_cast<typename UserDefaultValue::ValueType>(vt);"
+            _sst_ud_txt "${_sst_ud_txt}")
+        file(WRITE "${_sst_ud}" "${_sst_ud_txt}")
+    endif()
+endif()
+
 ## New version
 include(libs/sst/sst-plugininfra/cmake/git-version-functions.cmake)
 version_from_versionfile_or_git()
