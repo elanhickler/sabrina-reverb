@@ -1,9 +1,9 @@
-# Sabrina Reverb CLAP
+# Sabrina Reverb
+
+<img width="250" height="500" alt="cUJXUGU65P" src="https://github.com/user-attachments/assets/13b05894-5eeb-4f73-a724-4f812b8fd167" />
 
 CLAP-first (VST3/AUv2 via clap-wrapper) stereo reverb plugin for Soundemote.
 
-Walter's original code: https://github.com/soundemote/sabrina-reverb/tree/main/reference/walter-original-vst  
-Soundemote's object oriented port: https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay  
 KVR thread: https://www.kvraudio.com/forum/viewtopic.php?p=9309297
 
 Built from [`baconpaul/sidequest-startingpoint`](https://github.com/baconpaul/sidequest-startingpoint).
