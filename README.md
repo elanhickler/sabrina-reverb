@@ -2,7 +2,7 @@
 
 <img width="250" height="500" alt="cUJXUGU65P" src="https://github.com/user-attachments/assets/13b05894-5eeb-4f73-a724-4f812b8fd167" />
 
-CLAP-first (VST3/AUv2 via clap-wrapper) stereo reverb plugin for Soundemote.
+CLAP-first (VST3/AUv2 via clap-wrapper) stereo reverb plugin.
 
 KVR thread: https://www.kvraudio.com/forum/viewtopic.php?p=9309297
 
