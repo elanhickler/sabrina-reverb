@@ -23,7 +23,6 @@
 
 #include <clap/clap.h>
 #include "sst/basic-blocks/dsp/Lag.h"
-#include "sst/basic-blocks/dsp/VUPeak.h"
 #include "sst/basic-blocks/tables/EqualTuningProvider.h"
 #include "sst/voicemanager/voicemanager.h"
 #include "sst/cpputils/ring_buffer.h"
@@ -37,6 +36,9 @@
 
 #include "sst/basic-blocks/dsp/LagCollection.h"
 
+#include "engine/sabrina-api.h"
+#include "engine/soem-params.h"
+
 namespace baconpaul::sidequest_ns
 {
 struct Engine
@@ -44,6 +46,11 @@ struct Engine
     float output alignas(16)[2][blockSize];
 
     Patch patch;
+
+    // Sandbox sabrina_reverb native module (reverbEffect / original Sabrina VST port)
+    int sabrinaHandle{0};
+    SabrinaSoemParams soem;
+    void syncSabrinaParamsFromPatch();
     sst::basic_blocks::dsp::LagCollection<130> midiCCLagCollection; // 130 for 128 + pitch + chanat
 
     struct VMConfig
@@ -196,7 +203,13 @@ struct Engine
     template <bool multiOut> void processInternal(const clap_output_events_t *);
 
     void process(const clap_output_events_t *);
+    void process(const clap_output_events_t *, const float *const *inputChannels,
+                 uint32_t inputChannelCount, uint32_t inputFrameCount);
     void processUIQueue(const clap_output_events_t *);
+
+    // Matches sandbox sabrinaIdleFromPorts / soemdsp SilenceDetector:
+    // ~1s of input+tail below Planck → skip delay network and let CLAP sleep.
+    bool isIdle() const;
 
     void handleParamValue(Param *p, uint32_t pid, float value);
 
@@ -209,12 +222,11 @@ struct Engine
         enum Action : uint32_t
         {
             UPDATE_PARAM,
-            UPDATE_VU,
-            UPDATE_VOICE_COUNT,
             SET_PATCH_NAME,
             SET_PATCH_DIRTY_STATE,
             DO_PARAM_RESCAN,
-            SEND_SAMPLE_RATE
+            SEND_SAMPLE_RATE,
+            SCOPE_PEAK
         } action;
         uint32_t paramId{0};
         float value{0}, value2{0};
@@ -286,9 +298,7 @@ struct Engine
 
     sst::cpputils::active_set_overlay<Param> paramLagSet;
 
-    sst::basic_blocks::dsp::VUPeak vuPeak;
-    int32_t updateVuEvery{(int32_t)(48000 * 2.5 / 60 / blockSize)}; // approx
-    int32_t lastVuUpdate{updateVuEvery};
+    int32_t lastScopeUpdate{0};
 
     const clap_host_t *clapHost{nullptr};
 };

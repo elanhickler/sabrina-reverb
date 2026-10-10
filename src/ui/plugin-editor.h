@@ -21,21 +21,15 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "sst/jucegui/style/JUCELookAndFeelAdapter.h"
 
-#include <sst/jucegui/components/NamedPanel.h>
 #include <sst/jucegui/components/WindowPanel.h>
-#include <sst/jucegui/components/Knob.h>
 #include <sst/jucegui/components/ToolTip.h>
 #include <sst/jucegui/components/ToggleButton.h>
-#include <sst/jucegui/components/MenuButton.h>
-#include <sst/jucegui/components/JogUpDownButton.h>
-#include <sst/jucegui/components/VUMeter.h>
+#include <sst/jucegui/components/ContinuousParamEditor.h>
 #include <sst/jucegui/accessibility/FocusDebugger.h>
 #include <sst/jucegui/data/Continuous.h>
 
 #include "engine/engine.h"
 #include "engine/patch.h"
-#include "presets/preset-manager.h"
-#include "preset-data-binding.h"
 #include "ui-defaults.h"
 
 namespace jcmp = sst::jucegui::components;
@@ -68,20 +62,8 @@ struct PluginEditor : jcmp::WindowPanel
     std::unique_ptr<juce::Timer> idleTimer;
 
     std::unique_ptr<MainPanel> mainPanel;
-    void doSinglePanelHamburger();
-    void activateHamburger(bool b);
 
-    std::unique_ptr<presets::PresetManager> presetManager;
-    std::unique_ptr<PresetDataBinding> presetDataBinding;
-    std::unique_ptr<jcmp::JogUpDownButton> presetButton;
-    void showPresetPopup();
-    void doLoadPatch();
-    void doSavePatch();
     void postPatchChange(const std::string &displayName);
-    void resetToDefault();
-    void setPatchNameDisplay();
-    void setPatchNameTo(const std::string &);
-    std::unique_ptr<juce::FileChooser> fileChooser;
 
     std::unique_ptr<defaultsProvder_t> defaultsProvider;
 
@@ -95,7 +77,6 @@ struct PluginEditor : jcmp::WindowPanel
 
     void popupMenuForContinuous(jcmp::ContinuousParamEditor *e);
 
-    void hideAllSubPanels();
     std::unordered_map<uint32_t, juce::Component::SafePointer<juce::Component>> componentByID;
     std::unordered_map<uint32_t, std::function<void()>> componentRefreshByID;
 
@@ -110,13 +91,12 @@ struct PluginEditor : jcmp::WindowPanel
     bool keyPressed(const juce::KeyPress &key) override;
 
     void setZoomFactor(float zf);
+    void showUiSizeMenu();
     float zoomFactor{1.0f};
     std::function<void(float)> onZoomChanged{nullptr};
     bool toggleDebug();
 
-    static constexpr uint32_t edWidth{600}, edHeight{400};
-
-    std::unique_ptr<jcmp::VUMeter> vuMeter;
+    static constexpr uint32_t edWidth{320}, edHeight{640};
 
     void visibilityChanged() override;
     void parentHierarchyChanged() override;

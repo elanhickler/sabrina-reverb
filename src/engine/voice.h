@@ -27,7 +27,9 @@ struct Patch;
 
 struct Voice
 {
-    Voice(const Patch &p) : pitch(p.sqParams.pitch), harmlev(p.sqParams.harmlev) {}
+    // Voice scaffolding is unused on the Sabrina audio path; bind leftover
+    // references to real patch params so the starting-point Voice still compiles.
+    Voice(const Patch &p) : pitch(p.sabrina.mix), harmlev(p.sabrina.amplitude) {}
     ~Voice() = default;
 
     void attack()

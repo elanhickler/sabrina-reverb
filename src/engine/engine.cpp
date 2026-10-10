@@ -14,6 +14,8 @@
  */
 
 #include "engine/engine.h"
+#include <algorithm>
+#include <cmath>
 #include "sst/cpputils/constructors.h"
 #include "sst/basic-blocks/mechanics/block-ops.h"
 #include "sst/basic-blocks/dsp/PanLaws.h"
@@ -33,9 +35,46 @@ Engine::Engine()
       voices(sst::cpputils::make_array<Voice, VMConfig::maxVoiceCount>(patch))
 {
     voiceManager = std::make_unique<voiceManager_t>(responder, monoResponder);
+    sabrinaHandle = soemdsp_sabrina_reverb_create(48000.0);
+    syncSabrinaParamsFromPatch();
 }
 
-Engine::~Engine() {}
+Engine::~Engine()
+{
+    if (sabrinaHandle > 0)
+    {
+        soemdsp_sabrina_reverb_destroy(sabrinaHandle);
+        sabrinaHandle = 0;
+    }
+}
+
+void Engine::syncSabrinaParamsFromPatch()
+{
+    if (sabrinaHandle <= 0)
+        return;
+
+    auto &p = patch.sabrina;
+    // Host/CLAP knobs carry real DSP numbers. soemdsp Parameter stores
+    // the same mapped value and a linear copy for 0..1 modulation.
+    soem.mix.setMapped(p.mix.value);
+    soem.diffusionSize.setMapped(p.diffusionSize.value);
+    soem.diffusionAmount.setMapped(p.diffusionAmount.value);
+    soem.delaySize.setMapped(p.delaySize.value);
+    soem.recycle.setMapped(p.recycle.value);
+    soem.lfoAmplitude.setMapped(p.lfoAmplitude.value);
+    soem.lfoBaseSpeed.setMapped(p.lfoBaseSpeed.value);
+    soem.lfoVariation.setMapped(p.lfoVariation.value);
+    soem.lfoStyle.setMapped(p.lfoStyle.value);
+    soem.seed.setMapped(p.seed.value);
+    soem.amplitude.setMapped(p.amplitude.value);
+
+    soemdsp_sabrina_reverb_set_params(
+        sabrinaHandle, soem.mix.getDspDouble(), soem.diffusionSize.getDspDouble(),
+        soem.diffusionAmount.getDspDouble(), soem.delaySize.getDspDouble(),
+        soem.recycle.getDspDouble(), soem.lfoAmplitude.getDspDouble(),
+        soem.lfoBaseSpeed.getDspDouble(), soem.lfoVariation.getDspDouble(),
+        soem.seed.getDspDouble(), soem.lfoStyle.getDspDouble());
+}
 
 void Engine::setSampleRate(double sr)
 {
@@ -53,12 +92,27 @@ void Engine::setSampleRate(double sr)
                                               1.0 / blockSize);
     midiCCLagCollection.snapAllActiveToTarget();
 
-    vuPeak.setSampleRate(sampleRate);
+    if (sabrinaHandle > 0)
+        soemdsp_sabrina_reverb_reset(sabrinaHandle, sampleRate);
+    else
+        sabrinaHandle = soemdsp_sabrina_reverb_create(sampleRate);
+    syncSabrinaParamsFromPatch();
 
     audioToUi.push({AudioToUIMsg::SEND_SAMPLE_RATE, 0, (float)sampleRate});
 }
 
 void Engine::process(const clap_output_events_t *outq)
+{
+    process(outq, nullptr, 0, 0);
+}
+
+bool Engine::isIdle() const
+{
+    return sabrinaHandle > 0 && soemdsp_sabrina_reverb_is_idle(sabrinaHandle) != 0;
+}
+
+void Engine::process(const clap_output_events_t *outq, const float *const *inputChannels,
+                     uint32_t inputChannelCount, uint32_t inputFrameCount)
 {
     processUIQueue(outq);
 
@@ -86,61 +140,72 @@ void Engine::process(const clap_output_events_t *outq)
 
     lagHandler.process();
 
-    memset(output, 0, sizeof(output));
+    syncSabrinaParamsFromPatch();
 
-    auto cvoice = head;
-    Voice *removeVoice{nullptr};
+    const bool hasInput = inputChannels != nullptr && inputChannelCount > 0 &&
+                          inputChannels[0] != nullptr && inputFrameCount > 0;
+    const float amp = static_cast<float>(soem.amplitude.getDspDouble());
 
-    memset(output, 0, sizeof(output));
-    while (cvoice)
+    // Planck 1e-7 — same as sabrina_reverb.cpp / soemdsp SilenceDetector.
+    constexpr double kPlanck = 1.0e-7;
+    bool inputAwake = false;
+    if (hasInput)
     {
-        assert(!cvoice->finished());
-        cvoice->renderBlock();
-
-        mech::accumulate_from_to<blockSize>(cvoice->output[0], output[0]);
-        mech::accumulate_from_to<blockSize>(cvoice->output[1], output[1]);
-
-        if (cvoice->finished())
+        const uint32_t frames = std::min<uint32_t>(blockSize, inputFrameCount);
+        for (uint32_t i = 0; i < frames; ++i)
         {
-            auto rvoice = cvoice;
-            cvoice = removeFromVoiceList(cvoice);
-            rvoice->next = removeVoice;
-            removeVoice = rvoice;
-        }
-        else
-        {
-            cvoice = cvoice->next;
+            const double inL = inputChannels[0][i];
+            const double inR = inputChannelCount > 1 && inputChannels[1] != nullptr
+                                   ? inputChannels[1][i]
+                                   : inL;
+            if (std::abs(inL) >= kPlanck || std::abs(inR) >= kPlanck)
+            {
+                inputAwake = true;
+                break;
+            }
         }
     }
 
-    while (removeVoice)
+    if (isIdle() && !inputAwake)
     {
-        responder.doVoiceEndCallback(removeVoice);
-        auto v = removeVoice;
-        removeVoice = removeVoice->next;
-        v->next = nullptr;
-        assert(!v->next && !v->prior);
+        memset(output, 0, sizeof(output));
+        return;
+    }
+
+    for (int i = 0; i < blockSize; ++i)
+    {
+        const bool validFrame = hasInput && static_cast<uint32_t>(i) < inputFrameCount;
+        const double inL = validFrame ? inputChannels[0][i] : 0.0;
+        const double inR = validFrame && inputChannelCount > 1 && inputChannels[1] != nullptr
+                               ? inputChannels[1][i]
+                               : inL;
+
+        if (sabrinaHandle > 0)
+        {
+            soemdsp_sabrina_reverb_process(sabrinaHandle, inL, inR);
+            output[0][i] = static_cast<float>(soemdsp_sabrina_reverb_left(sabrinaHandle) * amp);
+            output[1][i] = static_cast<float>(soemdsp_sabrina_reverb_right(sabrinaHandle) * amp);
+        }
+        else
+        {
+            output[0][i] = static_cast<float>(inL * amp);
+            output[1][i] = static_cast<float>(inR * amp);
+        }
     }
 
     if (isEditorAttached)
     {
+        float peakL = 0.f, peakR = 0.f;
         for (int i = 0; i < blockSize; ++i)
         {
-            vuPeak.process(output[0][i], output[1][i]);
+            peakL = std::max(peakL, std::abs(output[0][i]));
+            peakR = std::max(peakR, std::abs(output[1][i]));
         }
-
-        if (lastVuUpdate >= updateVuEvery)
+        // blockSize is 8 (~6k blocks/sec). Only post ~60 scope columns/sec.
+        if (++lastScopeUpdate >= 100)
         {
-            AudioToUIMsg msg{AudioToUIMsg::UPDATE_VU, 0, vuPeak.vu_peak[0], vuPeak.vu_peak[1]};
-            audioToUi.push(msg);
-
-            AudioToUIMsg msg2{AudioToUIMsg::UPDATE_VOICE_COUNT, (uint32_t)voiceCount};
-            audioToUi.push(msg2);
-            lastVuUpdate = 0;
-        }
-        else
-        {
-            lastVuUpdate++;
+            audioToUi.push({AudioToUIMsg::SCOPE_PEAK, 0, peakL, peakR});
+            lastScopeUpdate = 0;
         }
     }
 }

@@ -1,39 +1,24 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb face host — no NamedPanel chrome.
  */
 
 #ifndef BACONPAUL_SIDEQUEST_UI_MAIN_PANEL_H
 #define BACONPAUL_SIDEQUEST_UI_MAIN_PANEL_H
 
-#include "sst/jucegui/components/NamedPanel.h"
-#include "patch-data-bindings.h"
+#include <juce_gui_basics/juce_gui_basics.h>
 #include "plugin-editor.h"
+#include "sabrina-face.h"
 
 namespace baconpaul::sidequest_ns::ui
 {
-struct MainPanel : sst::jucegui::components::NamedPanel
+struct MainPanel : juce::Component
 {
     MainPanel(PluginEditor &editor);
     void resized() override;
+    void pushPeaks(float left, float right);
 
-    std::vector<std::unique_ptr<sst::jucegui::components::Knob>> knobs;
-    std::vector<std::unique_ptr<PatchContinuous>> knobAs;
-
+    std::unique_ptr<SabrinaFace> face;
     PluginEditor &editor;
-
-    void beginEdit() {}
-    void endEdit() {}
 };
 } // namespace baconpaul::sidequest_ns::ui
-#endif // MAIN_PANEL_H
+#endif

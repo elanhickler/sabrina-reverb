@@ -1,8 +1,6 @@
-SideQuest
-Source: (fill in)
-Manual: (fill in)
-
-Insert a blurb here
+Sabrina Reverb
+Source: https://github.com/soundemote/sabrina-reverb-clap
+Built from baconpaul/sidequest-startingpoint with soemdsp.
 
 You've downloaded the zip file for either windows or linux (both have this same README) containing a clap,
 a vst3, and a standalone executable.
@@ -15,9 +13,8 @@ On linux, it is usually ~/.clap, ~/.vst or /usr/lib/clap and /usr/lib/vst3
 To install just move the file into those locations using whatever mechanism you are happiest with
 in your environment.
 
-If you have feedback ideas etc open a github issue or drop into the #baconpaul-sidequests channel
-of surge discord.
+If you have feedback ideas etc open a github issue on soundemote/sabrina-reverb-clap.
 
-The [PRODUCT] source code is released under the MIT license, but the final product contains GPL3 dependencies
+Sabrina Reverb source adaptations are released under the MIT license, but the final product contains GPL3 dependencies
 so this release is released under the GNU General Public License, 3 or later. You can read that license in the
 file License.txt included here.

@@ -14,6 +14,8 @@
  */
 
 #include "configuration.h"
+#include <algorithm>
+#include <cstring>
 #include <clap/clap.h>
 #include <chrono>
 
@@ -75,24 +77,21 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
 
     void onMainThread() noexcept override { engine->onMainThread(); }
 
+    static constexpr uint32_t kMainInputPortId{75240};
+    static constexpr uint32_t kMainOutputPortId{75241};
+
     bool implementsAudioPorts() const noexcept override { return true; }
-    uint32_t audioPortsCount(bool isInput) const noexcept override { return isInput ? 0 : 1; }
+    uint32_t audioPortsCount(bool isInput) const noexcept override { return 1; }
     bool audioPortsInfo(uint32_t index, bool isInput,
                         clap_audio_port_info *info) const noexcept override
     {
-        assert(!isInput);
-        if (isInput || index > (multiOut ? 6 : 0))
+        if (index != 0)
             return false;
-        info->id = 75241 + index;
+
+        info->id = isInput ? kMainInputPortId : kMainOutputPortId;
         info->in_place_pair = CLAP_INVALID_ID;
-        if (index == 0)
-            strncpy(info->name, "Main Out", sizeof(info->name));
-        else
-            snprintf(info->name, sizeof(info->name) - 1, "Operator %d", index);
-        if (index == 0)
-            info->flags = CLAP_AUDIO_PORT_IS_MAIN;
-        else
-            info->flags = 0;
+        strncpy(info->name, isInput ? "Main In" : "Main Out", sizeof(info->name));
+        info->flags = CLAP_AUDIO_PORT_IS_MAIN;
         info->channel_count = 2;
         info->port_type = CLAP_PORT_STEREO;
         return true;
@@ -105,22 +104,12 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
         return true;
     }
 
-    bool implementsNotePorts() const noexcept override { return true; }
-    uint32_t notePortsCount(bool isInput) const noexcept override { return isInput ? 1 : 0; }
+    bool implementsNotePorts() const noexcept override { return false; }
+    uint32_t notePortsCount(bool isInput) const noexcept override { return 0; }
     bool notePortsInfo(uint32_t index, bool isInput,
                        clap_note_port_info *info) const noexcept override
     {
-        assert(isInput);
-        assert(index == 0);
-        if (!isInput || index != 0)
-            return false;
-
-        info->id = 17252;
-        info->supported_dialects =
-            CLAP_NOTE_DIALECT_MIDI | CLAP_NOTE_DIALECT_MIDI_MPE | CLAP_NOTE_DIALECT_CLAP;
-        info->preferred_dialect = CLAP_NOTE_DIALECT_CLAP;
-        strncpy(info->name, "Note Input", CLAP_NAME_SIZE - 1);
-        return true;
+        return false;
     }
 
     clap_process_status process(const clap_process *process) noexcept override
@@ -147,21 +136,35 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
             // engine->monoValues.tempoSyncRatio = 1.f;
         }
 
-        static constexpr int outBus{1};
         static constexpr int outChan{2};
         float *out[outChan];
-        for (auto i = 0; i < outBus; ++i)
+        const float *input[outChan]{};
+        const clap_audio_buffer_t *mainInput =
+            process->audio_inputs_count > 0 ? &process->audio_inputs[0] : nullptr;
+        clap_audio_buffer_t *mainOutput =
+            process->audio_outputs_count > 0 ? &process->audio_outputs[0] : nullptr;
+
+        if (mainOutput == nullptr || mainOutput->channel_count < outChan ||
+            mainOutput->data32 == nullptr || mainOutput->data32[0] == nullptr ||
+            mainOutput->data32[1] == nullptr)
         {
-            auto lo = process->audio_outputs[i].data32;
-            out[2 * i] = lo[0];
-            out[2 * i + 1] = lo[1];
+            return CLAP_PROCESS_ERROR;
+        }
+
+        out[0] = mainOutput->data32[0];
+        out[1] = mainOutput->data32[1];
+
+        uint32_t inputChannelCount = 0;
+        if (mainInput != nullptr && mainInput->data32 != nullptr)
+        {
+            inputChannelCount = std::min<uint32_t>(mainInput->channel_count, outChan);
         }
 
         for (auto s = 0U; s < process->frames_count; ++s)
         {
             if (blockPos == 0)
             {
-                // Only realy need to run events when we do the block process
+                // Only really need to run events when we do the block process
                 while (nextEvent && nextEvent->time <= s)
                 {
                     handleEvent(nextEvent);
@@ -172,7 +175,14 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
                         nextEvent = nullptr;
                 }
 
-                engine->process(outq);
+                for (uint32_t channel = 0; channel < inputChannelCount; ++channel)
+                {
+                    input[channel] = mainInput->data32[channel] + s;
+                }
+
+                const uint32_t inputFrames =
+                    std::min<uint32_t>(blockSize, process->frames_count - s);
+                engine->process(outq, input, inputChannelCount, inputFrames);
             }
 
             for (auto i = 0; i < outChan; ++i)
@@ -196,7 +206,16 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
             else
                 nextEvent = nullptr;
         }
+        if (engine->isIdle())
+            return CLAP_PROCESS_SLEEP;
         return CLAP_PROCESS_CONTINUE;
+    }
+
+    bool implementsTail() const noexcept override { return true; }
+    uint32_t tailGet() const noexcept override
+    {
+        // Stay scheduled until SilenceDetector trips (~1s of quiet input+tail).
+        return engine && engine->isIdle() ? 0 : UINT32_MAX;
     }
 
     void reset() noexcept override { engine->voiceManager->allSoundsOff(); }

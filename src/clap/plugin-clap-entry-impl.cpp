@@ -36,22 +36,22 @@ extern const clap_plugin *makePlugin(const clap_host *, bool);
  */
 const clap_plugin_descriptor *getDescriptor()
 {
-    static const char *features[] = {CLAP_PLUGIN_FEATURE_INSTRUMENT,
-                                     CLAP_PLUGIN_FEATURE_SYNTHESIZER, "Free and Open Source",
-                                     "Subtractive", nullptr};
-
-    static char versionNum[1024];
+    static const char *features[] = {CLAP_PLUGIN_FEATURE_AUDIO_EFFECT,
+                                     CLAP_PLUGIN_FEATURE_STEREO,
+                                     CLAP_PLUGIN_FEATURE_REVERB,
+                                     "Free and Open Source",
+                                     nullptr};
 
     static clap_plugin_descriptor desc = {
         CLAP_VERSION,
-        "org.baconpaul.sidequest",
+        "org.soundemote.sabrina-reverb",
         PRODUCT_NAME,
-        "BaconPaul",
-        "https://baconpaul.org",
+        "Soundemote",
+        "https://soundemote.com",
         "",
         "",
         sst::plugininfra::VersionInformation::project_version_and_hash,
-        "Run of the mill subtractive synth. Almost.",
+        "Sabrina Reverb — stereo diffusion reverb from soemdsp.",
         &features[0]};
     return &desc;
 }
@@ -90,8 +90,8 @@ static bool clap_get_auv2_info(const clap_plugin_factory_as_auv2 *factory, uint3
 
     if (index == 0)
     {
-        strncpy(info->au_type, "aumu", 5); // use the features to determine the type
-        strncpy(info->au_subt, "sqTP", 5);
+        strncpy(info->au_type, "aufx", 5); // audio effect
+        strncpy(info->au_subt, "SaRv", 5);
     }
 
     return true;
@@ -120,15 +120,15 @@ const void *get_factory(const char *factory_id)
     if (strcmp(factory_id, CLAP_PLUGIN_FACTORY_INFO_AUV2) == 0)
     {
         static const struct clap_plugin_factory_as_auv2 sidequest_auv2_factory = {
-            "BcPL",      // manu
-            "BaconPaul", // manu name
+            "SdMt",       // manu
+            "Soundemote", // manu name
             clap_get_auv2_info};
         return &sidequest_auv2_factory;
     }
     if (strcmp(factory_id, CLAP_PLUGIN_FACTORY_INFO_VST3) == 0)
     {
         static const struct clap_plugin_factory_as_vst3 sidequest_vst3_factory = {
-            "BaconPaul", "https://baconpaul.org", "", clap_get_vst3_info};
+            "Soundemote", "https://soundemote.com", "", clap_get_vst3_info};
 
         return &sidequest_vst3_factory;
     }
@@ -138,7 +138,7 @@ const void *get_factory(const char *factory_id)
 bool clap_init(const char *p)
 {
     // sst::plugininfra::misc_platform::allocateConsole();
-    SQLOG("Initializing SideQuest "
+    SQLOG("Initializing Sabrina Reverb "
           << sst::plugininfra::VersionInformation::project_version_and_hash << " / "
           << sst::plugininfra::VersionInformation::git_implied_display_version);
     return true;

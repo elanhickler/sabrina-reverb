@@ -1,2 +1,4 @@
-This is the nightly build of the side quest starting point. 
-You do not want this. Its a test pre-plugin.
+Nightly build of **Sabrina Reverb** (Soundemote).
+
+CLAP / VST3 / standalone scaffold from baconpaul sidequest-startingpoint,
+DSP from soemdsp `delay::Reverb`.
