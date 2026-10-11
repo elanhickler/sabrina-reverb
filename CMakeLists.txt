@@ -16,12 +16,6 @@ math(EXPR PART1 "${DAY_OF_YEAR} + 1")
 project(sabrina-reverb-clap VERSION 0.${PART0}.${PART1} LANGUAGES C CXX)
 set(PRODUCT_NAME "Sabrina Reverb")
 
-# GitHub windows-2022/2025 runners now ship MSVC 14.51, which errors on JUCE's
-# <experimental/coroutine> unless this is defined.
-if (MSVC)
-    add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
-endif()
-
 
 option(USE_SANITIZER "Build and link with ASAN" FALSE)
 option(COPY_AFTER_BUILD "Will copy after build" TRUE)
