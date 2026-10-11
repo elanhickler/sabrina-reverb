@@ -3,7 +3,7 @@
 #include <soemdsp/plugin/Parameter.hpp>
 #include <soemdsp/plugin/ParameterPrototype.hpp>
 
-namespace baconpaul::sidequest_ns
+namespace soundemote::sabrina
 {
 namespace proto = soemdsp::plugin::parameterprototype;
 
@@ -82,4 +82,4 @@ struct SabrinaSoemParams
         }
     }
 };
-} // namespace baconpaul::sidequest_ns
+} // namespace soundemote::sabrina

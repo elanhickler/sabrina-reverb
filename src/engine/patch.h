@@ -14,8 +14,8 @@
  * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
  */
 
-#ifndef BACONPAUL_SIDEQUEST_ENGINE_PATCH_H
-#define BACONPAUL_SIDEQUEST_ENGINE_PATCH_H
+#ifndef SOUNDEMOTE_SABRINA_ENGINE_PATCH_H
+#define SOUNDEMOTE_SABRINA_ENGINE_PATCH_H
 
 #include <vector>
 #include <array>
@@ -29,7 +29,7 @@
 #include "sst/basic-blocks/dsp/Lag.h"
 #include "sst/plugininfra/patch-support/patch_base.h"
 
-namespace baconpaul::sidequest_ns
+namespace soundemote::sabrina
 {
 namespace scpu = sst::cpputils;
 namespace pats = sst::plugininfra::patch_support;
@@ -198,5 +198,5 @@ struct Patch : pats::PatchBase<Patch, Param>
     float migrateParamValueFromVersion(Param *p, float value, uint32_t version);
     void migratePatchFromVersion(uint32_t version);
 };
-} // namespace baconpaul::sidequest_ns
+} // namespace soundemote::sabrina
 #endif // PATCH_H
