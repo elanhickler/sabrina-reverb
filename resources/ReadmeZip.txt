@@ -9,15 +9,20 @@ Licenses
   notice is for the UI and for this binary because it links JUCE. It does not
   re-license the DSP. You can reuse the DSP under MIT.
 
-You've downloaded the zip file for either windows or linux (both have this same README) containing a clap,
-a vst3, and a standalone executable.
+You've downloaded a Windows, macOS, or Linux package containing CLAP and VST3
+(macOS also has AU). Copy the plugin into the folder for your OS:
 
-To install the plugin you need to move the clap or vst3 to the appropriate place on your computer
+Windows
+- CLAP → `%LOCALAPPDATA%\Programs\Common\CLAP\`
+- VST3 → `C:\Program Files\Common Files\VST3\`
 
-On windows files, move them to `c:\program files\common files\clap` or `\vst3`
-On linux, it is usually ~/.clap, ~/.vst or /usr/lib/clap and /usr/lib/vst3
+macOS
+- CLAP → `~/Library/Audio/Plug-Ins/CLAP/`
+- VST3 → `~/Library/Audio/Plug-Ins/VST3/`
+- AU → `~/Library/Audio/Plug-Ins/Components/`
 
-To install just move the file into those locations using whatever mechanism you are happiest with
-in your environment.
+Linux
+- CLAP → `~/.clap/` or `/usr/lib/clap/`
+- VST3 → `~/.vst3/` or `/usr/lib/vst3/`
 
 If you have feedback ideas etc open a github issue on soundemote/sabrina-reverb.
