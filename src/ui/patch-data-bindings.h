@@ -1,20 +1,10 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
-#ifndef BACONPAUL_SIDEQUEST_UI_PATCH_DATA_BINDINGS_H
-#define BACONPAUL_SIDEQUEST_UI_PATCH_DATA_BINDINGS_H
+#ifndef SOUNDEMOTE_SABRINA_UI_PATCH_DATA_BINDINGS_H
+#define SOUNDEMOTE_SABRINA_UI_PATCH_DATA_BINDINGS_H
 
 #include <cstdint>
 #include "sst/jucegui/data/Continuous.h"
@@ -27,7 +17,7 @@
 
 #include "plugin-editor.h"
 
-namespace baconpaul::sidequest_ns::ui
+namespace soundemote::sabrina::ui
 {
 struct PatchContinuous : jdat::Continuous
 {
@@ -277,5 +267,5 @@ void createRescaledComponent(PluginEditor &e, P &panel, const Param &parm, std::
     e.componentByID[id] = juce::Component::SafePointer<juce::Component>(cm.get());
 }
 
-} // namespace baconpaul::sidequest_ns::ui
+} // namespace soundemote::sabrina::ui
 #endif // PATCH_CONTINUOUS_H

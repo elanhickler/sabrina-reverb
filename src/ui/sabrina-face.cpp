@@ -1,6 +1,6 @@
 #include "sabrina-face.h"
 
-namespace baconpaul::sidequest_ns::ui
+namespace soundemote::sabrina::ui
 {
 
 namespace
@@ -388,4 +388,4 @@ void SabrinaFace::resized()
         s->setBounds(r.removeFromTop(rowH));
 }
 
-} // namespace baconpaul::sidequest_ns::ui
+} // namespace soundemote::sabrina::ui

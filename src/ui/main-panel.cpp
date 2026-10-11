@@ -1,6 +1,6 @@
 #include "main-panel.h"
 
-namespace baconpaul::sidequest_ns::ui
+namespace soundemote::sabrina::ui
 {
 
 MainPanel::MainPanel(PluginEditor &e) : editor(e)
@@ -21,4 +21,4 @@ void MainPanel::pushPeaks(float left, float right)
         face->pushPeaks(left, right);
 }
 
-} // namespace baconpaul::sidequest_ns::ui
+} // namespace soundemote::sabrina::ui

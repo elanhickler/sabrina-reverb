@@ -1,16 +1,6 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
 #include "plugin-editor.h"
@@ -24,7 +14,7 @@
 #include "patch-data-bindings.h"
 #include "main-panel.h"
 
-namespace baconpaul::sidequest_ns::ui
+namespace soundemote::sabrina::ui
 {
 
 struct IdleTimer : juce::Timer
@@ -401,9 +391,139 @@ void PluginEditor::setScreenSize(int titleHeights)
         mainPanel->face->resized();
 }
 
+namespace
+{
+constexpr const char *kPresetKind = "module-settings";
+constexpr const char *kPresetType = "reverbEffect";
+
+float jsonParamNumber(const juce::var &v, float fallback)
+{
+    if (v.isVoid() || v.isUndefined())
+        return fallback;
+    if (v.isString())
+    {
+        auto s = v.toString().trim().toLowerCase();
+        if (s == "parabol")
+            return 0.f;
+        if (s == "fbm")
+            return 1.f;
+        return s.getFloatValue();
+    }
+    return (float)(double)v;
+}
+} // namespace
+
+juce::String PluginEditor::jsonPresetFromPatch() const
+{
+    auto *params = new juce::DynamicObject();
+    const auto &s = patchCopy.sabrina;
+    params->setProperty("mix", s.mix.value);
+    params->setProperty("diffusionSize", s.diffusionSize.value);
+    params->setProperty("diffusionAmount", s.diffusionAmount.value);
+    params->setProperty("delaySize", s.delaySize.value);
+    params->setProperty("recycle", s.recycle.value);
+    params->setProperty("lfoAmplitude", s.lfoAmplitude.value);
+    params->setProperty("lfoBaseSpeed", s.lfoBaseSpeed.value);
+    params->setProperty("lfoVariation", s.lfoVariation.value);
+    params->setProperty("lfoStyle", (int)std::lround(s.lfoStyle.value));
+    params->setProperty("seed", (int)std::lround(s.seed.value));
+    params->setProperty("amplitude", s.amplitude.value);
+
+    auto *root = new juce::DynamicObject();
+    root->setProperty("soundemote", kPresetKind);
+    root->setProperty("type", kPresetType);
+    root->setProperty("version", 1);
+    root->setProperty("params", juce::var(params));
+    return juce::JSON::toString(juce::var(root), true);
+}
+
+bool PluginEditor::applyJsonPreset(const juce::String &text)
+{
+    auto parsed = juce::JSON::parse(text);
+    if (!parsed.isObject())
+        return false;
+    if (parsed["soundemote"].toString() != kPresetKind)
+        return false;
+    const auto type = parsed["type"].toString();
+    if (type != kPresetType && type != "Sabrina Reverb")
+        return false;
+    auto params = parsed["params"];
+    auto *obj = params.getDynamicObject();
+    if (!obj)
+        return false;
+
+    auto &s = patchCopy.sabrina;
+    auto set = [this, obj](Param &p, const char *key)
+    {
+        if (obj->hasProperty(key))
+            setAndSendParamValue(p.meta.id, jsonParamNumber(obj->getProperty(key), p.value));
+    };
+    set(s.mix, "mix");
+    set(s.diffusionSize, "diffusionSize");
+    set(s.diffusionAmount, "diffusionAmount");
+    set(s.delaySize, "delaySize");
+    set(s.recycle, "recycle");
+    set(s.lfoAmplitude, "lfoAmplitude");
+    set(s.lfoBaseSpeed, "lfoBaseSpeed");
+    set(s.lfoVariation, "lfoVariation");
+    set(s.lfoStyle, "lfoStyle");
+    set(s.seed, "seed");
+    set(s.amplitude, "amplitude");
+    return true;
+}
+
+void PluginEditor::copyJsonPreset()
+{
+    juce::SystemClipboard::copyTextToClipboard(jsonPresetFromPatch());
+}
+
+void PluginEditor::pasteJsonPreset()
+{
+    applyJsonPreset(juce::SystemClipboard::getTextFromClipboard());
+}
+
+void PluginEditor::saveJsonPreset()
+{
+    fileChooser = std::make_unique<juce::FileChooser>("Save module settings", juce::File(),
+                                                      "*.json");
+    fileChooser->launchAsync(juce::FileBrowserComponent::saveMode |
+                                 juce::FileBrowserComponent::canSelectFiles |
+                                 juce::FileBrowserComponent::warnAboutOverwriting,
+                             [this](const juce::FileChooser &chooser)
+                             {
+                                 auto f = chooser.getResult();
+                                 if (f == juce::File{})
+                                     return;
+                                 if (f.getFileExtension().isEmpty())
+                                     f = f.withFileExtension("json");
+                                 f.replaceWithText(jsonPresetFromPatch());
+                             });
+}
+
+void PluginEditor::loadJsonPreset()
+{
+    fileChooser = std::make_unique<juce::FileChooser>("Load module settings", juce::File(),
+                                                      "*.json");
+    fileChooser->launchAsync(juce::FileBrowserComponent::openMode |
+                                 juce::FileBrowserComponent::canSelectFiles,
+                             [this](const juce::FileChooser &chooser)
+                             {
+                                 auto f = chooser.getResult();
+                                 if (f == juce::File{})
+                                     return;
+                                 applyJsonPreset(f.loadFileAsString());
+                             });
+}
+
 void PluginEditor::showUiSizeMenu()
 {
     juce::PopupMenu menu;
+    menu.addSectionHeader("Preset");
+    menu.addItem("Copy settings", [this]() { copyJsonPreset(); });
+    menu.addItem("Paste settings", [this]() { pasteJsonPreset(); });
+    menu.addItem("Load settings...", [this]() { loadJsonPreset(); });
+    menu.addItem("Save settings...", [this]() { saveJsonPreset(); });
+    menu.addSeparator();
     menu.addSectionHeader("UI Size");
     menu.addItem("Reset to 100%  (" + std::to_string(edWidth) + " x " + std::to_string(edHeight) +
                      ")",
@@ -474,4 +594,4 @@ void PluginEditor::onStyleChanged()
         lnf->setStyle(style());
 }
 
-} // namespace baconpaul::sidequest_ns::ui
+} // namespace soundemote::sabrina::ui

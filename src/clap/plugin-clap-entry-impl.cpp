@@ -1,16 +1,6 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
 #include "configuration.h"
@@ -26,7 +16,7 @@
 #include <string.h>
 #include <clap/clap.h>
 
-namespace baconpaul::sidequest_ns
+namespace soundemote::sabrina
 {
 
 extern const clap_plugin *makePlugin(const clap_host *, bool);
@@ -110,27 +100,27 @@ const void *get_factory(const char *factory_id)
 {
     if (strcmp(factory_id, CLAP_PLUGIN_FACTORY_ID) == 0)
     {
-        static const struct clap_plugin_factory sidequest_clap_factory = {
+        static const struct clap_plugin_factory sabrina_clap_factory = {
             clap_get_plugin_count,
             clap_get_plugin_descriptor,
             clap_create_plugin,
         };
-        return &sidequest_clap_factory;
+        return &sabrina_clap_factory;
     }
     if (strcmp(factory_id, CLAP_PLUGIN_FACTORY_INFO_AUV2) == 0)
     {
-        static const struct clap_plugin_factory_as_auv2 sidequest_auv2_factory = {
+        static const struct clap_plugin_factory_as_auv2 sabrina_auv2_factory = {
             "SdMt",       // manu
             "Soundemote", // manu name
             clap_get_auv2_info};
-        return &sidequest_auv2_factory;
+        return &sabrina_auv2_factory;
     }
     if (strcmp(factory_id, CLAP_PLUGIN_FACTORY_INFO_VST3) == 0)
     {
-        static const struct clap_plugin_factory_as_vst3 sidequest_vst3_factory = {
+        static const struct clap_plugin_factory_as_vst3 sabrina_vst3_factory = {
             "Soundemote", "https://soundemote.com", "", clap_get_vst3_info};
 
-        return &sidequest_vst3_factory;
+        return &sabrina_vst3_factory;
     }
 
     return nullptr;
@@ -144,4 +134,4 @@ bool clap_init(const char *p)
     return true;
 }
 void clap_deinit() {}
-} // namespace baconpaul::sidequest_ns
+} // namespace soundemote::sabrina

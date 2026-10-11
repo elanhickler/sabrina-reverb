@@ -44,7 +44,7 @@ message(STATUS "DISPLAY_VERSION=${GIT_IMPLIED_DISPLAY_VERSION}; COMMIT_HASH=${GI
 
 include(cmake/CmakeRC.cmake)
 file(GLOB_RECURSE PATCHES  "resources/factory_patches/*.sxsnp")
-cmrc_add_resource_library(${PROJECT_NAME}-patches NAMESPACE sidequest_patches ${PATCHES})
+cmrc_add_resource_library(${PROJECT_NAME}-patches NAMESPACE sabrina_patches ${PATCHES})
 
 set(JUCE_PATH "${CMAKE_SOURCE_DIR}/libs/JUCE")
 add_subdirectory(libs)
@@ -63,7 +63,6 @@ add_library(${PROJECT_NAME}-impl STATIC
         src/presets/preset-manager.cpp
 
         src/engine/engine.cpp
-        src/engine/voice.cpp
         src/engine/patch.cpp
 
 )
@@ -100,9 +99,8 @@ target_link_libraries(${PROJECT_NAME}-impl PUBLIC
 target_link_libraries(${PROJECT_NAME}-impl PRIVATE
         simde
         clap-helpers clap-wrapper-extensions
-        mts-esp-client
         fmt-header-only
-        sst-basic-blocks sst-voicemanager sst-jucegui sst-cpputils
+        sst-basic-blocks sst-jucegui sst-cpputils
         sst-plugininfra
         sst-plugininfra::filesystem
         sst-plugininfra::tinyxml

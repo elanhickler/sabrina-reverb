@@ -1,16 +1,6 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
 #include "preset-manager.h"
@@ -22,9 +12,9 @@
 
 #include <cmrc/cmrc.hpp>
 
-CMRC_DECLARE(sidequest_patches);
+CMRC_DECLARE(sabrina_patches);
 
-namespace baconpaul::sidequest_ns::presets
+namespace soundemote::sabrina::presets
 {
 
 PresetManager::PresetManager(const clap_host_t *ch) : clapHost(ch)
@@ -32,7 +22,7 @@ PresetManager::PresetManager(const clap_host_t *ch) : clapHost(ch)
     try
     {
         userPath =
-            sst::plugininfra::paths::bestDocumentsVendorFolderPathFor("BaconPaul", "SideQuest");
+            sst::plugininfra::paths::bestDocumentsVendorFolderPathFor("Soundemote", "SabrinaReverb");
         if (clapHost)
             fs::create_directories(userPath);
         userPatchesPath = userPath / "Patches";
@@ -46,7 +36,7 @@ PresetManager::PresetManager(const clap_host_t *ch) : clapHost(ch)
 
     try
     {
-        auto fs = cmrc::sidequest_patches::get_filesystem();
+        auto fs = cmrc::sabrina_patches::get_filesystem();
         for (const auto &d : fs.iterate_directory(factoryPath))
         {
             if (d.is_directory())
@@ -192,7 +182,7 @@ void PresetManager::loadFactoryPreset(Patch &patch, Engine::mainToAudioQueue_T &
 {
     try
     {
-        auto fs = cmrc::sidequest_patches::get_filesystem();
+        auto fs = cmrc::sabrina_patches::get_filesystem();
         auto f = fs.open(std::string() + factoryPath + "/" + cat + "/" + pat);
         auto pb = std::string(f.begin(), f.end());
         patch.fromState(pb);
@@ -285,4 +275,4 @@ void PresetManager::sendEntirePatchToAudio(Patch &patch, Engine::mainToAudioQueu
     }
 }
 
-} // namespace baconpaul::sidequest_ns::presets
+} // namespace soundemote::sabrina::presets

@@ -1,16 +1,6 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
 #include "configuration.h"
@@ -30,14 +20,13 @@
 #include "sst/plugininfra/patch-support/patch_base_clap_adapter.h"
 #include "sst/plugininfra/cpufeatures.h"
 
-#include "sst/voicemanager/midi1_to_voicemanager.h"
 #include "sst/clap_juce_shim/clap_juce_shim.h"
 
 #include "ui/plugin-editor.h"
 
 #include <clapwrapper/vst3.h>
 
-namespace baconpaul::sidequest_ns
+namespace soundemote::sabrina
 {
 
 extern const clap_plugin_descriptor *getDescriptor();
@@ -51,9 +40,9 @@ static constexpr clap::helpers::CheckingLevel checkLevel = clap::helpers::Checki
 
 using plugHelper_t = clap::helpers::Plugin<misLevel, checkLevel>;
 
-template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_shim::EditorProvider
+template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_juce_shim::EditorProvider
 {
-    SideQuest(const clap_host *h) : plugHelper_t(getDescriptor(), h)
+    SabrinaPlugin(const clap_host *h) : plugHelper_t(getDescriptor(), h)
     {
         engine = std::make_unique<Engine>();
 
@@ -62,7 +51,7 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
         clapJuceShim = std::make_unique<sst::clap_juce_shim::ClapJuceShim>(this);
         clapJuceShim->setResizable(true);
     }
-    virtual ~SideQuest(){};
+    virtual ~SabrinaPlugin() = default;
 
     std::unique_ptr<Engine> engine;
     size_t blockPos{0};
@@ -218,64 +207,18 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
         return engine && engine->isIdle() ? 0 : UINT32_MAX;
     }
 
-    void reset() noexcept override { engine->voiceManager->allSoundsOff(); }
+    void reset() noexcept override {}
 
     bool handleEvent(const clap_event_header_t *nextEvent)
     {
-        auto &vm = engine->voiceManager;
-        if (nextEvent->space_id == CLAP_CORE_EVENT_SPACE_ID)
+        if (nextEvent->space_id == CLAP_CORE_EVENT_SPACE_ID &&
+            nextEvent->type == CLAP_EVENT_PARAM_VALUE)
         {
-            switch (nextEvent->type)
-            {
-            case CLAP_EVENT_MIDI:
-            {
-                auto mevt = reinterpret_cast<const clap_event_midi *>(nextEvent);
-                sst::voicemanager::applyMidi1Message(*vm, mevt->port_index, mevt->data);
-            }
-            break;
-
-            case CLAP_EVENT_NOTE_ON:
-            {
-                auto nevt = reinterpret_cast<const clap_event_note *>(nextEvent);
-                vm->processNoteOnEvent(nevt->port_index, nevt->channel, nevt->key, nevt->note_id,
-                                       nevt->velocity, 0.f);
-            }
-            break;
-
-            case CLAP_EVENT_NOTE_OFF:
-            {
-                auto nevt = reinterpret_cast<const clap_event_note *>(nextEvent);
-                auto nid = nevt->note_id;
-                // nid = -1;
-                vm->processNoteOffEvent(nevt->port_index, nevt->channel, nevt->key, nid,
-                                        nevt->velocity);
-            }
-            break;
-            case CLAP_EVENT_PARAM_VALUE:
-            {
-                auto pevt = reinterpret_cast<const clap_event_param_value *>(nextEvent);
-                auto par =
-                    sst::plugininfra::patch_support::paramFromClapEvent<Param>(pevt, engine->patch);
-                if (par)
-                {
-                    engine->handleParamValue(par, pevt->param_id, pevt->value);
-                }
-            }
-            break;
-
-            case CLAP_EVENT_NOTE_EXPRESSION:
-            {
-                auto nevt = reinterpret_cast<const clap_event_note_expression *>(nextEvent);
-                vm->routeNoteExpression(nevt->port_index, nevt->channel, nevt->key, nevt->note_id,
-                                        nevt->expression_id, nevt->value);
-            }
-            break;
-            default:
-            {
-                SQLOG("Unknown inbound event of type " << nextEvent->type);
-            }
-            break;
-            }
+            auto pevt = reinterpret_cast<const clap_event_param_value *>(nextEvent);
+            auto par =
+                sst::plugininfra::patch_support::paramFromClapEvent<Param>(pevt, engine->patch);
+            if (par)
+                engine->handleParamValue(par, pevt->param_id, pevt->value);
         }
         return true;
     }
@@ -365,7 +308,7 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
     ADD_SHIM_LINUX_TIMER(clapJuceShim)
     std::unique_ptr<juce::Component> createEditor() override
     {
-        auto res = std::make_unique<baconpaul::sidequest_ns::ui::PluginEditor>(
+        auto res = std::make_unique<soundemote::sabrina::ui::PluginEditor>(
             engine->audioToUi, engine->mainToAudio, _host.host());
 
         res->onZoomChanged = [this, ed = res.get()](auto)
@@ -382,8 +325,8 @@ template <bool multiOut> struct SideQuest : public plugHelper_t, sst::clap_juce_
         onShow = [e = res.get()]()
         {
             if (e)
-                e->setSize(e->px((int)baconpaul::sidequest_ns::ui::PluginEditor::edWidth),
-                           e->px((int)baconpaul::sidequest_ns::ui::PluginEditor::edHeight));
+                e->setSize(e->px((int)soundemote::sabrina::ui::PluginEditor::edWidth),
+                           e->px((int)soundemote::sabrina::ui::PluginEditor::edHeight));
             return true;
         };
         // res->sneakyStartupGrabFrom(engine->patch);
@@ -435,19 +378,19 @@ const clap_plugin *makePlugin(const clap_host *h, bool multiOut)
 {
     if (multiOut)
     {
-        auto res = new baconpaul::sidequest_ns::clapimpl::SideQuest<true>(h);
+        auto res = new soundemote::sabrina::clapimpl::SabrinaPlugin<true>(h);
         return res->clapPlugin();
     }
     else
     {
-        auto res = new baconpaul::sidequest_ns::clapimpl::SideQuest<false>(h);
+        auto res = new soundemote::sabrina::clapimpl::SabrinaPlugin<false>(h);
         return res->clapPlugin();
     }
 }
-} // namespace baconpaul::sidequest_ns
+} // namespace soundemote::sabrina
 
 namespace chlp = clap::helpers;
-namespace bpss = baconpaul::sidequest_ns::clapimpl;
+namespace srclap = soundemote::sabrina::clapimpl;
 
-template class chlp::Plugin<bpss::misLevel, bpss::checkLevel>;
-template class chlp::HostProxy<bpss::misLevel, bpss::checkLevel>;
+template class chlp::Plugin<srclap::misLevel, srclap::checkLevel>;
+template class chlp::HostProxy<srclap::misLevel, srclap::checkLevel>;

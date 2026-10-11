@@ -1,20 +1,10 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
-#ifndef BACONPAUL_SIDEQUEST_UI_PLUGIN_EDITOR_H
-#define BACONPAUL_SIDEQUEST_UI_PLUGIN_EDITOR_H
+#ifndef SOUNDEMOTE_SABRINA_UI_PLUGIN_EDITOR_H
+#define SOUNDEMOTE_SABRINA_UI_PLUGIN_EDITOR_H
 
 #include <functional>
 #include <utility>
@@ -35,7 +25,7 @@
 namespace jcmp = sst::jucegui::components;
 namespace jdat = sst::jucegui::data;
 
-namespace baconpaul::sidequest_ns::ui
+namespace soundemote::sabrina::ui
 {
 
 struct MainPanel;
@@ -93,6 +83,13 @@ struct PluginEditor : jcmp::WindowPanel
     void setZoomFactor(float zf);
     void setScreenSize(int titleHeights);
     void showUiSizeMenu();
+    void copyJsonPreset();
+    void pasteJsonPreset();
+    void saveJsonPreset();
+    void loadJsonPreset();
+    juce::String jsonPresetFromPatch() const;
+    bool applyJsonPreset(const juce::String &text);
+    std::unique_ptr<juce::FileChooser> fileChooser;
     float zoomFactor{1.0f};
     int screenSize{2}; // display height in title-bar heights, 1..5
     int px(int native) const { return juce::roundToInt((float)native * zoomFactor); }
@@ -120,5 +117,5 @@ struct HasEditor
     PluginEditor &editor;
     HasEditor(PluginEditor &e) : editor(e) {}
 };
-} // namespace baconpaul::sidequest_ns::ui
+} // namespace soundemote::sabrina::ui
 #endif

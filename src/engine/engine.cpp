@@ -1,40 +1,18 @@
 /*
- * SideQuest Starting Point
- *
- * Basically lets paul bootstrap his projects.
- *
- * Copyright 2024-2025, Paul Walker and Various authors, as described in the github
- * transaction log.
- *
- * This source repo is released under the MIT license, but has
- * GPL3 dependencies, as such the combined work will be
- * released under GPL3.
- *
- * The source code and license are at https://github.com/baconpaul/sidequest-startingpoint
+ * Sabrina Reverb — Soundemote
+ * DSP MIT (Walter Hackett). UI links JUCE (AGPLv3). See LICENSE.md.
  */
 
 #include "engine/engine.h"
 #include <algorithm>
 #include <cmath>
-#include "sst/cpputils/constructors.h"
-#include "sst/basic-blocks/mechanics/block-ops.h"
-#include "sst/basic-blocks/dsp/PanLaws.h"
-
-#include "libMTSClient.h"
-
-namespace baconpaul::sidequest_ns
+namespace soundemote::sabrina
 {
 
 int debugLevel{0};
 
-namespace mech = sst::basic_blocks::mechanics;
-namespace sdsp = sst::basic_blocks::dsp;
-
 Engine::Engine()
-    : responder(*this), monoResponder(*this),
-      voices(sst::cpputils::make_array<Voice, VMConfig::maxVoiceCount>(patch))
 {
-    voiceManager = std::make_unique<voiceManager_t>(responder, monoResponder);
     sabrinaHandle = soemdsp_sabrina_reverb_create(48000.0);
     syncSabrinaParamsFromPatch();
 }
@@ -87,11 +65,6 @@ void Engine::setSampleRate(double sr)
     }
     paramLagSet.removeAll();
 
-    // midi is a bit less frequent than param automation so a slightly slower smooth
-    midiCCLagCollection.setRateInMilliseconds(1000.0 * 128.0 / 48000.0, sampleRate,
-                                              1.0 / blockSize);
-    midiCCLagCollection.snapAllActiveToTarget();
-
     if (sabrinaHandle > 0)
         soemdsp_sabrina_reverb_reset(sabrinaHandle, sampleRate);
     else
@@ -135,8 +108,6 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
             ++it;
         }
     }
-
-    midiCCLagCollection.processAll();
 
     lagHandler.process();
 
@@ -207,53 +178,6 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
             audioToUi.push({AudioToUIMsg::SCOPE_PEAK, 0, peakL, peakR});
             lastScopeUpdate = 0;
         }
-    }
-}
-
-void Engine::addToVoiceList(Voice *v)
-{
-    v->prior = nullptr;
-    v->next = head;
-    if (v->next)
-    {
-        v->next->prior = v;
-    }
-    head = v;
-    voiceCount++;
-}
-
-Voice *Engine::removeFromVoiceList(Voice *cvoice)
-{
-    if (cvoice->prior)
-    {
-        cvoice->prior->next = cvoice->next;
-    }
-    if (cvoice->next)
-    {
-        cvoice->next->prior = cvoice->prior;
-    }
-    if (cvoice == head)
-    {
-        head = cvoice->next;
-    }
-    auto nv = cvoice->next;
-    cvoice->cleanup();
-    cvoice->next = nullptr;
-    cvoice->prior = nullptr;
-    voiceCount--;
-
-    return nv;
-}
-
-void Engine::dumpVoiceList()
-{
-    SQLOG("DUMP VOICE LIST : head=" << std::hex << head << std::dec);
-    auto c = head;
-    while (c)
-    {
-        // SQLOG("   c=" << std::hex << c << std::dec << " key=" << c->voiceValues.key
-        //                 << " u=" << c->used);
-        c = c->next;
     }
 }
 
@@ -358,7 +282,6 @@ void Engine::processUIQueue(const clap_output_events_t *outq)
         {
             if (lagHandler.active)
                 lagHandler.instantlySnap();
-            voiceManager->allSoundsOff();
             audioRunning = false;
         }
         break;
@@ -400,11 +323,6 @@ void Engine::processUIQueue(const clap_output_events_t *outq)
         case MainToAudioMsg::EDITOR_ATTACH_DETATCH:
         {
             isEditorAttached = uiM->paramId;
-        }
-        break;
-        case MainToAudioMsg::PANIC_STOP_VOICES:
-        {
-            voiceManager->allSoundsOff();
         }
         break;
         }
@@ -453,4 +371,4 @@ void Engine::onMainThread()
     }
 }
 
-} // namespace baconpaul::sidequest_ns
+} // namespace soundemote::sabrina

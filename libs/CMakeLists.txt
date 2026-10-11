@@ -11,15 +11,10 @@ target_include_directories(simde INTERFACE simde)
 add_subdirectory(sst/sst-cpputils)
 add_subdirectory(sst/sst-basic-blocks)
 add_subdirectory(sst/sst-jucegui)
-add_subdirectory(sst/sst-voicemanager)
 
 set(SST_PLUGININFRA_PROVIDE_TINYXML ON CACHE BOOL "yesxml")
 set(SST_PLUGININFRA_PROVIDE_PATCHBASE ON CACHE BOOL "patchbase pls")
 add_subdirectory(sst/sst-plugininfra)
-
-add_library(mts-esp-client STATIC MTS-ESP/Client/libMTSClient.cpp)
-target_include_directories(mts-esp-client PUBLIC MTS-ESP/Client)
-
 
 set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE CACHE BOOL "Get em")
 set(CLAP_WRAPPER_DONT_ADD_TARGETS TRUE CACHE BOOL "I'll targetize")
@@ -27,7 +22,6 @@ set(CLAP_WRAPPER_BUILD_AUV2 TRUE CACHE BOOL "It's only logical")
 add_compile_definitions(CLAP_WRAPPER_LOGLEVEL=0)
 
 if (APPLE)
-    # BaconPaul has jack kinda installed
     set(RTAUDIO_API_JACK FALSE CACHE BOOL "Not on apple")
 endif()
 

@@ -8,7 +8,7 @@
 #include "patch-data-bindings.h"
 #include "plugin-editor.h"
 
-namespace baconpaul::sidequest_ns::ui
+namespace soundemote::sabrina::ui
 {
 static constexpr int kTitleBarHeight{34};
 static constexpr int kLabelFontPx{11};
@@ -98,4 +98,4 @@ struct SabrinaFace : juce::Component
     std::vector<std::unique_ptr<SabrinaSlider>> sliders;
 };
 
-} // namespace baconpaul::sidequest_ns::ui
+} // namespace soundemote::sabrina::ui
