@@ -22,6 +22,7 @@ double soemdsp_sabrina_reverb_wet_left(int handle);
 double soemdsp_sabrina_reverb_wet_right(int handle);
 int soemdsp_sabrina_reverb_is_idle(int handle);
 int soemdsp_sabrina_reverb_version();
+void soemdsp_sabrina_reverb_delay_times(int handle, float *out14);
 
 #ifdef __cplusplus
 }

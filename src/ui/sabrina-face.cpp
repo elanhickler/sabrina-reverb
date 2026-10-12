@@ -1,4 +1,7 @@
-#include "sabrina-face.h"
+﻿#include "sabrina-face.h"
+
+#include <cmath>
+#include <unordered_map>
 
 namespace soundemote::sabrina::ui
 {
@@ -8,16 +11,39 @@ namespace
 const juce::Colour kModuleFill{0xff171a1f}; // sandbox --node-module-fill
 const juce::Colour kFaceBg{0xff080b0d};
 const juce::Colour kFaceLine{0xff343a40};
-const juce::Colour kAmount{0x8c1b3545};     // hsl(200 31% 15% / 0.55)
-const juce::Colour kPosition{0x5e44a4ff};   // rgb(68 164 255 / 0.37)
-const juce::Colour kLabel{0xebcfdde5};
+const juce::Colour kPosition{0x5e44a4ff}; // rgb(68 164 255 / 0.37)
+const juce::Colour kLabel{0xffcfdde5};
 const juce::Colour kValue{0xffffffff};
-const juce::Colour kUnit{0x947fc7d9};
+const juce::Colour kUnit{0x947fc7d9}; // #7fc7d9 @ ~58%
+const juce::Colour kTitle{0xc2f3f1ec}; // rgba(243,241,236,0.76)
+const juce::Colour kChoiceDiv{0x33f3f1ec};
 
-juce::Font monoFont(float height)
+juce::Font sandboxMono(float height)
 {
-    return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), height,
-                                        juce::Font::plain));
+    return juce::Font(juce::FontOptions("Cascadia Mono", height, juce::Font::plain)
+                         .withFallbacks({"Cascadia Code", "Consolas", "Courier New"})
+                         .withFallbackEnabled());
+}
+
+constexpr int kDelayPlateW{512};
+constexpr int kDelayPlateH{128};
+constexpr float kStemCssPx{2.f};
+constexpr float kAaCssPx{1.f};
+constexpr float kFaceDesignW{234.f};
+constexpr float kTrail{0.3f};
+constexpr float kGhost{0.25f};
+
+std::unordered_map<const void *, juce::Image> gDelayPlates;
+
+juce::Image &delayPlateFor(PluginEditor &editor)
+{
+    auto &img = gDelayPlates[static_cast<const void *>(&editor.audioToUI)];
+    if (img.isNull() || img.getWidth() != kDelayPlateW || img.getHeight() != kDelayPlateH)
+    {
+        img = juce::Image(juce::Image::RGB, kDelayPlateW, kDelayPlateH, true);
+        img.clear(img.getBounds(), juce::Colour(0xff000004));
+    }
+    return img;
 }
 } // namespace
 
@@ -27,6 +53,18 @@ SabrinaSlider::SabrinaSlider(PluginEditor &e, uint32_t paramId, juce::String uni
 {
     source = std::make_unique<PatchContinuous>(e, paramId);
     e.componentRefreshByID[paramId] = [this]() { repaint(); };
+}
+
+int SabrinaSlider::choiceCount() const
+{
+    if (!source->p)
+        return 0;
+    if (source->p->meta.type != sst::basic_blocks::params::ParamMetaData::INT)
+        return 0;
+    const int n = (int)std::lround(source->getMax() - source->getMin()) + 1;
+    if (n < 2 || n > 16)
+        return 0;
+    return n;
 }
 
 float SabrinaSlider::value01() const
@@ -88,14 +126,19 @@ void SabrinaSlider::endGesture()
 void SabrinaSlider::resized()
 {
     if (typeIn)
-        typeIn->setBounds(getLocalBounds().reduced(2));
+    {
+        auto r = getLocalBounds();
+        r.removeFromTop(r.getHeight() / 2);
+        r.removeFromRight(unit.isNotEmpty() ? editor.px(kUnitMin) : 0);
+        typeIn->setBounds(r.reduced(editor.px(kSliderPadX), 0));
+    }
 }
 
 void SabrinaSlider::startTypeIn()
 {
     cancelTypeIn();
     typeIn = std::make_unique<juce::TextEditor>();
-    typeIn->setFont(monoFont(editor.px((float)kValueFontPx)));
+    typeIn->setFont(sandboxMono(editor.px((float)kValueFontPx)));
     typeIn->setJustification(juce::Justification::centredLeft);
     typeIn->setColour(juce::TextEditor::backgroundColourId, kFaceBg);
     typeIn->setColour(juce::TextEditor::textColourId, kValue);
@@ -105,7 +148,9 @@ void SabrinaSlider::startTypeIn()
     typeIn->setText(source->getValueAsString(), juce::dontSendNotification);
     typeIn->addListener(this);
     addAndMakeVisible(*typeIn);
-    typeIn->setBounds(getLocalBounds().reduced(2));
+    auto text = getLocalBounds().removeFromBottom(juce::jmax(1, getHeight() / 2));
+    text.removeFromRight(unit.isNotEmpty() ? editor.px(kUnitMin) : 0);
+    typeIn->setBounds(text.reduced(editor.px(kSliderPadX), 0));
     typeIn->grabKeyboardFocus();
     typeIn->selectAll();
 }
@@ -143,42 +188,59 @@ void SabrinaSlider::paint(juce::Graphics &g)
 {
     auto r = getLocalBounds().toFloat();
     g.setColour(kFaceBg);
-    g.fillRoundedRectangle(r, editor.px(3.f));
+    g.fillRect(r);
 
-    auto t = value01();
-    auto fill = r.withWidth(r.getWidth() * t);
-    g.setColour(kAmount);
-    g.fillRect(fill);
-    g.setColour(kPosition);
-    const float bar = editor.px(2.f);
-    g.fillRect(fill.withX(fill.getRight() - bar).withWidth(bar));
-
-    auto text = r.withTrimmedLeft(editor.px(kTextPadPx)).withTrimmedRight(editor.px(kTextPadPx));
-
-    juce::String valueText(source->getValueAsString());
-    if (unit.isNotEmpty())
-        valueText += " " + unit;
-
-    juce::String label = faceLabel.isNotEmpty() ? faceLabel : juce::String(source->getLabel());
-    g.setColour(kLabel);
-    g.setFont(monoFont(editor.px((float)kLabelFontPx)));
-    if (label.containsChar('\n'))
+    const int choices = choiceCount();
+    if (choices > 0)
     {
-        auto line1 = label.upToFirstOccurrenceOf("\n", false, false);
-        auto line2 = label.fromFirstOccurrenceOf("\n", false, false);
-        auto top = text.withHeight(text.getHeight() * 0.5f);
-        auto bottom = text.withY(top.getBottom()).withHeight(text.getHeight() * 0.5f);
-        g.drawText(line1, top, juce::Justification::centredLeft, false);
-        g.drawText(line2, bottom, juce::Justification::centredLeft, false);
+        const int sel = juce::jlimit(
+            0, choices - 1,
+            (int)std::lround(source->getValue() - source->getMin()));
+        const float cell = r.getWidth() / (float)choices;
+        g.setColour(kPosition);
+        g.fillRect(juce::Rectangle<float>(r.getX() + (float)sel * cell, r.getY(), cell, r.getHeight()));
+        g.setColour(kChoiceDiv);
+        for (int i = 1; i < choices; ++i)
+            g.fillRect(juce::Rectangle<float>(r.getX() + (float)i * cell, r.getY(), 1.f, r.getHeight()));
     }
     else
     {
-        g.drawText(label, text, juce::Justification::centredLeft, false);
+        const float t = value01();
+        const float half = juce::jmin(editor.px((float)kHandle) * 0.5f, r.getWidth() * 0.5f);
+        const float travel = juce::jmax(1.f, r.getWidth() - half * 2.f);
+        const float center = r.getX() + half + t * travel;
+        g.setColour(kPosition);
+        g.fillRect(juce::Rectangle<float>(center - half, r.getY(), half * 2.f, r.getHeight()));
     }
 
+    const float padX = editor.px((float)kSliderPadX);
+    auto inner = r.reduced(padX, 0.f);
+    const float unitW = unit.isNotEmpty() ? editor.px((float)kUnitMin) : 0.f;
+    const float fontH = juce::jmax(8.f, r.getHeight() * 0.46f);
+    const float pairH = fontH * 2.f;
+    const float y0 = inner.getY() + (inner.getHeight() - pairH) * 0.5f;
+    auto labelR = juce::Rectangle<float>(inner.getX(), y0, inner.getWidth(), fontH);
+    auto valueR = juce::Rectangle<float>(inner.getX(), y0 + fontH, inner.getWidth() - unitW, fontH);
+    auto unitR = juce::Rectangle<float>(inner.getRight() - unitW, inner.getY(), unitW, inner.getHeight());
+
+    juce::String label = faceLabel.isNotEmpty() ? faceLabel : juce::String(source->getLabel());
+    label = label.replaceCharacter('\n', ' ');
+    juce::String valueText(source->getValueAsString());
+    if (unit.isNotEmpty())
+        valueText = valueText.replace(unit, "").trim();
+
+    auto font = sandboxMono(fontH);
+    g.setFont(font);
+    g.setColour(kLabel);
+    g.drawText(label, labelR, juce::Justification::centredLeft, false);
     g.setColour(kValue);
-    g.setFont(monoFont(editor.px((float)kValueFontPx)));
-    g.drawText(valueText, text, juce::Justification::centredRight, false);
+    g.drawText(valueText, valueR, juce::Justification::centredLeft, false);
+    if (unit.isNotEmpty())
+    {
+        g.setFont(sandboxMono(juce::jmax(8.f, r.getHeight() * 0.5f)));
+        g.setColour(kUnit);
+        g.drawText(unit, unitR, juce::Justification::centredRight, false);
+    }
 }
 
 void SabrinaSlider::mouseDown(const juce::MouseEvent &e)
@@ -193,8 +255,12 @@ void SabrinaSlider::mouseDown(const juce::MouseEvent &e)
         return;
     }
 
-    // ctrl/cmd+click (no alt/shift) = reset default
-    if ((mods.isCtrlDown() || mods.isCommandDown()) && !mods.isAltDown() && !mods.isShiftDown())
+    // Reaper uses Alt+click to close the FX window. Do not start a gesture.
+    if (mods.isAltDown())
+        return;
+
+    // ctrl/cmd+click (no shift) = reset default
+    if ((mods.isCtrlDown() || mods.isCommandDown()) && !mods.isShiftDown())
     {
         beginGesture();
         applyValue(source->getDefaultValue());
@@ -203,7 +269,7 @@ void SabrinaSlider::mouseDown(const juce::MouseEvent &e)
     }
 
     beginGesture();
-    if (mods.isAltDown() && !(mods.isShiftDown() && (mods.isCtrlDown() || mods.isCommandDown())))
+    if (choiceCount() > 0)
         applyFromX(e.x);
 
     dragging = true;
@@ -217,6 +283,11 @@ void SabrinaSlider::mouseDrag(const juce::MouseEvent &e)
 {
     if (!dragging)
         return;
+    if (choiceCount() > 0)
+    {
+        applyFromX(e.x);
+        return;
+    }
 
     const auto scale = fineScale(e.mods);
     if (scale != dragFineScale)
@@ -256,52 +327,92 @@ void SabrinaSlider::mouseWheelMove(const juce::MouseEvent &e, const juce::MouseW
     endGesture();
 }
 
-void SabrinaWaterfall::ensurePlate()
+void SabrinaWaterfall::pushDelayTimes(const float times[14])
 {
-    auto w = juce::jmax(8, getWidth());
-    auto h = juce::jmax(8, getHeight());
-    if (plate.getWidth() != w || plate.getHeight() != h)
-    {
-        plate = juce::Image(juce::Image::RGB, w, h, true);
-        plate.clear(plate.getBounds(), juce::Colours::black);
-    }
-}
-
-void SabrinaWaterfall::resized() { ensurePlate(); }
-
-void SabrinaWaterfall::pushPeaks(float left, float right)
-{
-    ensurePlate();
-    if (plate.isNull())
+    if (!editor)
         return;
 
-    plate.moveImageSection(0, 0, 1, 0, plate.getWidth() - 1, plate.getHeight());
-    auto g = juce::Graphics(plate);
-    auto x = plate.getWidth() - 1;
-    auto mid = plate.getHeight() / 2;
-    auto l = juce::jlimit(0.f, 1.f, std::abs(left));
-    auto r = juce::jlimit(0.f, 1.f, std::abs(right));
-    g.setColour(juce::Colours::black);
-    g.fillRect(x, 0, 1, plate.getHeight());
-    g.setColour(juce::Colour::fromFloatRGBA(0.15f + 0.85f * l, 0.55f * l, 0.12f, 1.f));
-    auto lh = juce::jmax(1, (int)std::round(l * (float)mid));
-    g.fillRect(x, mid - lh, 1, lh);
-    g.setColour(juce::Colour::fromFloatRGBA(0.12f, 0.45f * r, 0.15f + 0.85f * r, 1.f));
-    auto rh = juce::jmax(1, (int)std::round(r * (float)(plate.getHeight() - mid)));
-    g.fillRect(x, mid, 1, rh);
+    auto &plate = delayPlateFor(*editor);
+    const int w = plate.getWidth();
+    const int h = plate.getHeight();
+    juce::Image::BitmapData bits(plate, juce::Image::BitmapData::readWrite);
+
+    const float keep = juce::jlimit(0.f, 0.995f, kTrail * 0.97f + kGhost * 0.02f);
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const auto c = bits.getPixelColour(x, y);
+            bits.setPixelColour(x, y,
+                                juce::Colour::fromRGB((juce::uint8)(c.getRed() * keep),
+                                                      (juce::uint8)(c.getGreen() * keep),
+                                                      (juce::uint8)(c.getBlue() * keep)));
+        }
+    }
+
+    const float cssToPlate = (float)w / kFaceDesignW;
+    const float solidW = juce::jmax(2.f * cssToPlate, kStemCssPx * cssToPlate);
+    const float aaW = juce::jmax(0.f, kAaCssPx * cssToPlate);
+    auto stampStem = [&](float x01, bool right)
+    {
+        const float xCenter = juce::jlimit(0.f, 1.f, x01) * (float)w;
+        const float left = xCenter - solidW * 0.5f;
+        const float rightEdge = left + solidW;
+        const int i0 = (int)std::floor(left - aaW);
+        const int i1 = (int)std::ceil(rightEdge + aaW) - 1;
+        const int rAdd = right ? 110 : 255;
+        const int gAdd = 130;
+        const int bAdd = right ? 255 : 110;
+        for (int ix = i0; ix <= i1; ++ix)
+        {
+            if (ix < 0 || ix >= w)
+                continue;
+            const float c = (float)ix + 0.5f;
+            float gain = 0.f;
+            if (c >= left && c <= rightEdge)
+                gain = 1.f;
+            else if (aaW > 0.f && c < left)
+                gain = juce::jmax(0.f, 1.f - (left - c) / aaW);
+            else if (aaW > 0.f)
+                gain = juce::jmax(0.f, 1.f - (c - rightEdge) / aaW);
+            if (!(gain > 0.f))
+                continue;
+            const int addR = (int)std::lround((float)rAdd * gain);
+            const int addG = (int)std::lround((float)gAdd * gain);
+            const int addB = (int)std::lround((float)bAdd * gain);
+            for (int y = 0; y < h; ++y)
+            {
+                const auto c = bits.getPixelColour(ix, y);
+                bits.setPixelColour(ix, y,
+                                    juce::Colour::fromRGB(
+                                        (juce::uint8)juce::jmin(255, c.getRed() + addR),
+                                        (juce::uint8)juce::jmin(255, c.getGreen() + addG),
+                                        (juce::uint8)juce::jmin(255, c.getBlue() + addB)));
+            }
+        }
+    };
+
+    for (int i = 0; i < 14; ++i)
+        stampStem(times[i], (i & 1) != 0);
+    repaint();
+}
+
+void SabrinaWaterfall::resized()
+{
+    repaint();
 }
 
 void SabrinaWaterfall::paint(juce::Graphics &g)
 {
-    ensurePlate();
     g.fillAll(juce::Colours::black);
-    if (!plate.isNull())
+    if (editor)
+    {
+        auto &plate = delayPlateFor(*editor);
+        g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
         g.drawImage(plate, getLocalBounds().toFloat());
+    }
     g.setColour(juce::Colour(0xff1c2228));
     g.drawRect(getLocalBounds(), 1);
-    auto mid = getHeight() / 2;
-    g.setColour(juce::Colour(0x3322aaff));
-    g.drawHorizontalLine(mid, 0.f, (float)getWidth());
 }
 
 void SabrinaTitleBar::paint(juce::Graphics &g)
@@ -313,11 +424,22 @@ void SabrinaTitleBar::paint(juce::Graphics &g)
     g.fillRect(bounds);
 
     const juce::String title{PRODUCT_NAME};
-    const float titlePx = editor ? editor->px((float)kTitleFontPx) : (float)kTitleFontPx;
-    g.setColour(juce::Colour(0xc2f3f1ec));
-    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), titlePx,
-                                           juce::Font::plain)));
-    g.drawText(title, getLocalBounds(), juce::Justification::centred, false);
+    const float pad = 6.f;
+    const float maxH = juce::jmax(8.f, bounds.getHeight() * 0.86f);
+    const float maxW = juce::jmax(8.f, bounds.getWidth() - pad * 2.f);
+    juce::Font font = sandboxMono(maxH);
+    const float textW = juce::jmax(1.f, font.getStringWidthFloat(title));
+    if (textW > maxW)
+        font = sandboxMono(maxH * maxW / textW);
+    g.setColour(kTitle);
+    juce::GlyphArrangement ga;
+    ga.addLineOfText(font, title, 0.f, 0.f);
+    juce::Path outlines;
+    ga.createPath(outlines);
+    const auto ink = outlines.getBounds();
+    if (!ink.isEmpty())
+        ga.draw(g, juce::AffineTransform::translation(bounds.getCentreX() - ink.getCentreX(),
+                                                      bounds.getCentreY() - ink.getCentreY()));
 }
 
 void SabrinaTitleBar::mouseUp(const juce::MouseEvent &e)
@@ -336,6 +458,7 @@ SabrinaFace::SabrinaFace(PluginEditor &e) : editor(e)
 {
     titleBar.editor = &e;
     waterfall.editor = &e;
+    waterfall.setOpaque(true);
     addAndMakeVisible(titleBar);
     addAndMakeVisible(waterfall);
 
@@ -346,10 +469,10 @@ SabrinaFace::SabrinaFace(PluginEditor &e) : editor(e)
         const char *faceLabel;
     };
     const Row rows[] = {
-        {e.patchCopy.sabrina.mix.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.diffusionSize.meta.id, "", "Diffusion\nSize"},
-        {e.patchCopy.sabrina.diffusionAmount.meta.id, "", "Diffusion\nAmount"},
-        {e.patchCopy.sabrina.delaySize.meta.id, "", "Delay\nTime"},
+        {e.patchCopy.sabrina.mix.meta.id, "%", nullptr},
+        {e.patchCopy.sabrina.diffusionSize.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.diffusionAmount.meta.id, "", nullptr},
+        {e.patchCopy.sabrina.delaySize.meta.id, "", nullptr},
         {e.patchCopy.sabrina.recycle.meta.id, "", nullptr},
         {e.patchCopy.sabrina.lfoAmplitude.meta.id, "", nullptr},
         {e.patchCopy.sabrina.lfoBaseSpeed.meta.id, "", nullptr},
@@ -366,26 +489,38 @@ SabrinaFace::SabrinaFace(PluginEditor &e) : editor(e)
     }
 }
 
-void SabrinaFace::paint(juce::Graphics &g) { g.fillAll(kModuleFill); }
-
-void SabrinaFace::pushPeaks(float left, float right)
+void SabrinaFace::paint(juce::Graphics &g)
 {
-    waterfall.pushPeaks(left, right);
-    waterfall.repaint();
+    g.fillAll(kModuleFill);
+    g.setColour(juce::Colours::white.withAlpha(0.16f));
+    g.drawRect(getLocalBounds().toFloat(), 2.f);
+}
+
+void SabrinaFace::pushDelayTimes(const float times[14])
+{
+    waterfall.pushDelayTimes(times);
 }
 
 void SabrinaFace::resized()
 {
-    auto r = getLocalBounds();
+    auto r = getLocalBounds().reduced(editor.px(kInset));
     const int titleH = editor.px(kTitleBarHeight);
     titleBar.setBounds(r.removeFromTop(titleH));
-    const int displayH = titleH * juce::jlimit(1, 5, editor.screenSize);
-    waterfall.setBounds(r.removeFromTop(juce::jmin(displayH, r.getHeight())));
+    const int displayH = editor.px(kTitleBarHeight) * juce::jlimit(1, 5, editor.screenSize);
+    waterfall.setBounds(r.removeFromTop(juce::jmin(displayH, juce::jmax(0, r.getHeight()))));
     if (sliders.empty())
         return;
-    auto rowH = r.getHeight() / (int)sliders.size();
-    for (auto &s : sliders)
-        s->setBounds(r.removeFromTop(rowH));
+    const int gap = editor.px(kBodyGap);
+    r.removeFromTop(juce::jmin(gap, r.getHeight()));
+    const int n = (int)sliders.size();
+    const int totalGap = gap * juce::jmax(0, n - 1);
+    const int rowH = juce::jmax(8, (r.getHeight() - totalGap) / n);
+    for (int i = 0; i < n; ++i)
+    {
+        sliders[(size_t)i]->setBounds(r.removeFromTop(rowH));
+        if (i + 1 < n)
+            r.removeFromTop(gap);
+    }
 }
 
 } // namespace soundemote::sabrina::ui

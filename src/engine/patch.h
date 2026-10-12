@@ -125,7 +125,9 @@ struct Patch : pats::PatchBase<Patch, Param>
         static constexpr uint32_t idBase{500};
 
         SabrinaNode()
-            : mix(unit01(0.43f)
+            : mix(floatMd()
+                      .asPercent()
+                      .withDefault(0.43f)
                       .withName("Mix")
                       .withGroupName("Main")
                       .withID(id(0))),

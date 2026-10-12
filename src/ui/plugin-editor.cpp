@@ -6,6 +6,7 @@
 #include "plugin-editor.h"
 
 #include <cmath>
+#include <cstring>
 
 #include "sst/clap_juce_shim/menu_helper.h"
 #include "sst/plugininfra/misc_platform.h"
@@ -66,7 +67,8 @@ PluginEditor::PluginEditor(Engine::audioToUIQueue_t &atou, Engine::mainToAudioQu
     zoomFactor = pzf * 0.01f;
     screenSize = juce::jlimit(1, 5, defaultsProvider->getUserDefaultValue(Defaults::screenSize, 2));
     setTransform({});
-    setSize(px((int)edWidth), px((int)edHeight));
+    setSize(juce::roundToInt((float)edWidth * zoomFactor),
+            juce::roundToInt((float)designHeight() * zoomFactor));
 #define DEBUG_FOCUS 0
 #if DEBUG_FOCUS
     focusDebugger = std::make_unique<sst::jucegui::accessibility::FocusDebugger>(*this);
@@ -75,15 +77,22 @@ PluginEditor::PluginEditor(Engine::audioToUIQueue_t &atou, Engine::mainToAudioQu
 }
 PluginEditor::~PluginEditor()
 {
+    if (idleTimer)
+        idleTimer->stopTimer();
+    idleTimer.reset();
+    onZoomChanged = nullptr;
+    fileChooser.reset();
+    componentRefreshByID.clear();
+    componentByID.clear();
     mainToAudio.push({Engine::MainToAudioMsg::EDITOR_ATTACH_DETATCH, false});
-    idleTimer->stopTimer();
+    mainPanel.reset();
     setLookAndFeel(nullptr);
 }
 
 void PluginEditor::idle()
 {
-    float scopeL = 0.f, scopeR = 0.f;
-    bool haveScope = false;
+    float delayTimes[14]{};
+    bool haveDelayMod = false;
     auto aum = audioToUI.pop();
     while (aum.has_value())
     {
@@ -91,11 +100,10 @@ void PluginEditor::idle()
         {
             setAndSendParamValue(aum->paramId, aum->value, false);
         }
-        else if (aum->action == Engine::AudioToUIMsg::SCOPE_PEAK)
+        else if (aum->action == Engine::AudioToUIMsg::DELAY_MOD)
         {
-            scopeL = aum->value;
-            scopeR = aum->value2;
-            haveScope = true;
+            std::memcpy(delayTimes, aum->delayTimes, sizeof(delayTimes));
+            haveDelayMod = true;
         }
         else if (aum->action == Engine::AudioToUIMsg::SET_PATCH_NAME)
         {
@@ -129,8 +137,8 @@ void PluginEditor::idle()
         }
         aum = audioToUI.pop();
     }
-    if (haveScope && mainPanel)
-        mainPanel->pushPeaks(scopeL, scopeR);
+    if (haveDelayMod && mainPanel && isShowing())
+        mainPanel->pushDelayTimes(delayTimes);
 }
 
 void PluginEditor::paint(juce::Graphics &g)
@@ -350,6 +358,8 @@ void PluginEditor::visibilityChanged() {}
 void PluginEditor::parentHierarchyChanged()
 {
 #if JUCE_WINDOWS
+    if (!isShowing() || defaultsProvider == nullptr)
+        return;
     auto swr = defaultsProvider->getUserDefaultValue(Defaults::useSoftwareRenderer, false);
 
     if (swr)
@@ -374,11 +384,10 @@ void PluginEditor::setZoomFactor(float zf)
 {
     zoomFactor = juce::jlimit(0.5f, 3.f, zf);
     setTransform({});
-    setSize(px((int)edWidth), px((int)edHeight));
+    setSize(juce::roundToInt((float)edWidth * zoomFactor),
+            juce::roundToInt((float)designHeight() * zoomFactor));
     defaultsProvider->updateUserDefaultValue(Defaults::zoomLevel,
                                              juce::roundToInt(zoomFactor * 100.f));
-    if (mainPanel && mainPanel->face)
-        mainPanel->face->resized();
     if (onZoomChanged)
         onZoomChanged(zoomFactor);
 }
@@ -489,14 +498,16 @@ void PluginEditor::saveJsonPreset()
     fileChooser->launchAsync(juce::FileBrowserComponent::saveMode |
                                  juce::FileBrowserComponent::canSelectFiles |
                                  juce::FileBrowserComponent::warnAboutOverwriting,
-                             [this](const juce::FileChooser &chooser)
+                             [safe = juce::Component::SafePointer(this)](const juce::FileChooser &chooser)
                              {
+                                 if (!safe)
+                                     return;
                                  auto f = chooser.getResult();
                                  if (f == juce::File{})
                                      return;
                                  if (f.getFileExtension().isEmpty())
                                      f = f.withFileExtension("json");
-                                 f.replaceWithText(jsonPresetFromPatch());
+                                 f.replaceWithText(safe->jsonPresetFromPatch());
                              });
 }
 
@@ -506,28 +517,33 @@ void PluginEditor::loadJsonPreset()
                                                       "*.json");
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode |
                                  juce::FileBrowserComponent::canSelectFiles,
-                             [this](const juce::FileChooser &chooser)
+                             [safe = juce::Component::SafePointer(this)](const juce::FileChooser &chooser)
                              {
+                                 if (!safe)
+                                     return;
                                  auto f = chooser.getResult();
                                  if (f == juce::File{})
                                      return;
-                                 applyJsonPreset(f.loadFileAsString());
+                                 safe->applyJsonPreset(f.loadFileAsString());
                              });
 }
 
 void PluginEditor::showUiSizeMenu()
 {
+    auto safe = juce::Component::SafePointer(this);
     juce::PopupMenu menu;
     menu.addSectionHeader("Preset");
-    menu.addItem("Copy settings", [this]() { copyJsonPreset(); });
-    menu.addItem("Paste settings", [this]() { pasteJsonPreset(); });
-    menu.addItem("Load settings...", [this]() { loadJsonPreset(); });
-    menu.addItem("Save settings...", [this]() { saveJsonPreset(); });
+    menu.addItem("Copy settings", [safe]() { if (safe) safe->copyJsonPreset(); });
+    menu.addItem("Paste settings", [safe]() { if (safe) safe->pasteJsonPreset(); });
+    menu.addItem("Load settings...", [safe]() { if (safe) safe->loadJsonPreset(); });
+    menu.addItem("Save settings...", [safe]() { if (safe) safe->saveJsonPreset(); });
     menu.addSeparator();
     menu.addSectionHeader("UI Size");
-    menu.addItem("Reset to 100%  (" + std::to_string(edWidth) + " x " + std::to_string(edHeight) +
+    menu.addItem("Reset to 100%  (" + std::to_string((int)edWidth) + " x " +
+                     std::to_string((int)edHeight) +
                      ")",
-                 true, std::fabs(zoomFactor - 1.f) < 0.02f, [this]() { setZoomFactor(1.f); });
+                 true, std::fabs(zoomFactor - 1.f) < 0.02f,
+                 [safe]() { if (safe) safe->setZoomFactor(1.f); });
     menu.addSeparator();
     for (int scale : {75, 90, 100, 110, 125, 150, 200})
     {
@@ -536,7 +552,8 @@ void PluginEditor::showUiSizeMenu()
         const bool ticked = std::fabs(zoomFactor * 100.f - (float)scale) < 2.f;
         menu.addItem(std::to_string(scale) + "%  (" + std::to_string(w) + " x " + std::to_string(h) +
                          ")",
-                     true, ticked, [this, scale]() { setZoomFactor(scale * 0.01f); });
+                     true, ticked,
+                     [safe, scale]() { if (safe) safe->setZoomFactor(scale * 0.01f); });
     }
 
     menu.addSeparator();
@@ -545,7 +562,8 @@ void PluginEditor::showUiSizeMenu()
     {
         const auto label = std::to_string(n) + (n == 1 ? " title height" : " title heights") +
                            (n == 2 ? "  (default)" : "");
-        menu.addItem(label, true, screenSize == n, [this, n]() { setScreenSize(n); });
+        menu.addItem(label, true, screenSize == n,
+                     [safe, n]() { if (safe) safe->setScreenSize(n); });
     }
     // Desktop popup — not parented to the editor, so UI size does not scale the menu.
     menu.showMenuAsync(juce::PopupMenu::Options());

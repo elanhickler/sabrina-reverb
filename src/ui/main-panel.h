@@ -15,7 +15,7 @@ struct MainPanel : juce::Component
 {
     MainPanel(PluginEditor &editor);
     void resized() override;
-    void pushPeaks(float left, float right);
+    void pushDelayTimes(const float times[14]);
 
     std::unique_ptr<SabrinaFace> face;
     PluginEditor &editor;

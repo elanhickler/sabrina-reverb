@@ -65,11 +65,12 @@ struct Engine
             SET_PATCH_DIRTY_STATE,
             DO_PARAM_RESCAN,
             SEND_SAMPLE_RATE,
-            SCOPE_PEAK
+            DELAY_MOD
         } action;
         uint32_t paramId{0};
         float value{0}, value2{0};
         const char *patchNamePointer{0};
+        float delayTimes[14]{};
     };
     struct MainToAudioMsg
     {

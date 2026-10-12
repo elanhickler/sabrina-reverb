@@ -166,16 +166,12 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
 
     if (isEditorAttached)
     {
-        float peakL = 0.f, peakR = 0.f;
-        for (int i = 0; i < blockSize; ++i)
-        {
-            peakL = std::max(peakL, std::abs(output[0][i]));
-            peakR = std::max(peakR, std::abs(output[1][i]));
-        }
-        // blockSize is 8 (~6k blocks/sec). Only post ~60 scope columns/sec.
         if (++lastScopeUpdate >= 100)
         {
-            audioToUi.push({AudioToUIMsg::SCOPE_PEAK, 0, peakL, peakR});
+            AudioToUIMsg msg{AudioToUIMsg::DELAY_MOD};
+            if (sabrinaHandle > 0)
+                soemdsp_sabrina_reverb_delay_times(sabrinaHandle, msg.delayTimes);
+            audioToUi.push(msg);
             lastScopeUpdate = 0;
         }
     }

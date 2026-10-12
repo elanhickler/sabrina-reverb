@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <memory>
 #include <vector>
 
@@ -10,11 +9,20 @@
 
 namespace soundemote::sabrina::ui
 {
-static constexpr int kTitleBarHeight{34};
-static constexpr int kLabelFontPx{11};
-static constexpr int kValueFontPx{16};
+// soemdsp-sandbox module chrome at 100% (grid 28). Scale with PluginEditor::px.
+static constexpr int kGrid{28};
+static constexpr int kTitleBarHeight{28};
+static constexpr int kSliderHeight{30};
+static constexpr int kBodyGap{2};
+static constexpr int kInset{6};
+static constexpr int kBorder{2};
+static constexpr int kSliderPadX{7};
+static constexpr int kHandle{16};
+static constexpr int kUnitMin{35};
+static constexpr int kLabelFontPx{13};
+static constexpr int kValueFontPx{14};
+static constexpr int kUnitFontPx{13};
 static constexpr int kTitleFontPx{20};
-static constexpr int kTextPadPx{6};
 
 // Sandbox-style module slider: full width, label / number / unit, amount fill.
 // Modifiers match soemdsp-sandbox node-graph-slider-dragging.js:
@@ -54,6 +62,7 @@ struct SabrinaSlider : juce::Component, juce::TextEditor::Listener
     void cancelTypeIn();
     float value01() const;
     float fineScale(const juce::ModifierKeys &m) const;
+    int choiceCount() const;
 
     bool dragging{false};
     bool gestureOpen{false};
@@ -67,14 +76,10 @@ struct SabrinaSlider : juce::Component, juce::TextEditor::Listener
 struct SabrinaWaterfall : juce::Component
 {
     PluginEditor *editor{nullptr};
-    void pushPeaks(float left, float right);
+    void pushDelayTimes(const float times[14]);
     void paint(juce::Graphics &g) override;
     void resized() override;
     void mouseUp(const juce::MouseEvent &e) override;
-
-  private:
-    juce::Image plate;
-    void ensurePlate();
 };
 
 struct SabrinaTitleBar : juce::Component
@@ -91,7 +96,7 @@ struct SabrinaFace : juce::Component
 
     void resized() override;
     void paint(juce::Graphics &g) override;
-    void pushPeaks(float left, float right);
+    void pushDelayTimes(const float times[14]);
 
     SabrinaTitleBar titleBar;
     SabrinaWaterfall waterfall;

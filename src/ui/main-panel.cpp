@@ -15,10 +15,10 @@ void MainPanel::resized()
         face->setBounds(getLocalBounds());
 }
 
-void MainPanel::pushPeaks(float left, float right)
+void MainPanel::pushDelayTimes(const float times[14])
 {
     if (face)
-        face->pushPeaks(left, right);
+        face->pushDelayTimes(times);
 }
 
 } // namespace soundemote::sabrina::ui

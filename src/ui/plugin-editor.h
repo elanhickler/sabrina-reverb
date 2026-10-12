@@ -92,12 +92,13 @@ struct PluginEditor : jcmp::WindowPanel
     std::unique_ptr<juce::FileChooser> fileChooser;
     float zoomFactor{1.0f};
     int screenSize{2}; // display height in title-bar heights, 1..5
+    int designHeight() const { return (int)edHeight; }
     int px(int native) const { return juce::roundToInt((float)native * zoomFactor); }
     float px(float native) const { return native * zoomFactor; }
     std::function<void(float)> onZoomChanged{nullptr};
     bool toggleDebug();
 
-    static constexpr uint32_t edWidth{250}, edHeight{500};
+    static constexpr uint32_t edWidth{234}, edHeight{516};
 
     void visibilityChanged() override;
     void parentHierarchyChanged() override;

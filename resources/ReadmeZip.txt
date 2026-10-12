@@ -10,7 +10,7 @@ Licenses
   re-license the DSP. You can reuse the DSP under MIT.
 
 You've downloaded a Windows, macOS, or Linux package containing CLAP and VST3
-(macOS also has AU). Copy the plugin into the folder for your OS:
+(macOS also has AU). Copy the plugin into the folder for your OS.
 
 Windows
 - CLAP → `%LOCALAPPDATA%\Programs\Common\CLAP\`
@@ -19,7 +19,20 @@ Windows
 macOS
 - CLAP → `~/Library/Audio/Plug-Ins/CLAP/`
 - VST3 → `~/Library/Audio/Plug-Ins/VST3/`
-- AU → `~/Library/Audio/Plug-Ins/Components/`
+- AU (.component) → `~/Library/Audio/Plug-Ins/Components/`
+
+These Mac builds are not Apple-notarized. After a download, Gatekeeper will
+say it cannot tell if they contain malware. That is expected. You are not
+doing anything wrong.
+
+In Terminal, after copying the plugins:
+
+  xattr -cr ~/Library/Audio/Plug-Ins/VST3/"Sabrina Reverb.vst3"
+  xattr -cr ~/Library/Audio/Plug-Ins/Components/"Sabrina Reverb.component"
+  xattr -cr ~/Library/Audio/Plug-Ins/CLAP/"Sabrina Reverb.clap"
+
+Then System Settings → Privacy & Security → Open Anyway if macOS still
+blocks them. Restart the DAW and rescan plugins.
 
 Linux
 - CLAP → `~/.clap/` or `/usr/lib/clap/`

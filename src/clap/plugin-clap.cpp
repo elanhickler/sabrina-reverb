@@ -311,22 +311,28 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
         auto res = std::make_unique<soundemote::sabrina::ui::PluginEditor>(
             engine->audioToUi, engine->mainToAudio, _host.host());
 
-        res->onZoomChanged = [this, ed = res.get()](auto)
+        juce::Component::SafePointer<soundemote::sabrina::ui::PluginEditor> safeEd(res.get());
+        res->onZoomChanged = [this, safeEd](auto)
         {
-            if (_host.canUseGui() && clapJuceShim->isEditorAttached() && ed)
+            if (!safeEd)
+                return;
+            if (_host.canUseGui() && clapJuceShim->isEditorAttached())
             {
-                const uint32_t w = (uint32_t)ed->getWidth();
-                const uint32_t h = (uint32_t)ed->getHeight();
+                const uint32_t w = (uint32_t)safeEd->getWidth();
+                const uint32_t h = (uint32_t)safeEd->getHeight();
                 guiSetSize(w, h);
                 _host.guiRequestResize(w, h);
             }
         };
 
-        onShow = [e = res.get()]()
+        onShow = [safeEd]()
         {
-            if (e)
-                e->setSize(e->px((int)soundemote::sabrina::ui::PluginEditor::edWidth),
-                           e->px((int)soundemote::sabrina::ui::PluginEditor::edHeight));
+            if (!safeEd)
+                return true;
+            safeEd->setSize(
+                juce::roundToInt((float)soundemote::sabrina::ui::PluginEditor::edWidth *
+                                 safeEd->zoomFactor),
+                juce::roundToInt((float)safeEd->designHeight() * safeEd->zoomFactor));
             return true;
         };
         // res->sneakyStartupGrabFrom(engine->patch);
