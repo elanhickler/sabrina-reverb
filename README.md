@@ -1,6 +1,6 @@
 # Sabrina Reverb
 
-Download: https://github.com/soundemote/sabrina-reverb/releases
+Download: https://github.com/elanhickler/sabrina-reverb/releases
 
 <img width="250" height="500" alt="cUJXUGU65P" src="https://github.com/user-attachments/assets/13b05894-5eeb-4f73-a724-4f812b8fd167" />
 
