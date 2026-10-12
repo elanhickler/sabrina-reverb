@@ -155,7 +155,7 @@ jobs:
         with:
           tag: Nightly
           reuse_tag: true
-          create_tag: false
+          create_tag: true
           token: ${{ secrets.GITHUB_TOKEN }}
           release_blurb_file: resources/NightlyBlurb.md
 
