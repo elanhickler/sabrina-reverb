@@ -83,6 +83,8 @@ struct PluginEditor : jcmp::WindowPanel
     void setZoomFactor(float zf);
     void setScreenSize(int titleHeights);
     void showUiSizeMenu();
+    bool isStandaloneHost() const;
+    void openStandaloneAudioSettings();
     void copyJsonPreset();
     void pasteJsonPreset();
     void saveJsonPreset();

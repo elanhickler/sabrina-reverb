@@ -492,7 +492,7 @@ SabrinaFace::SabrinaFace(PluginEditor &e) : editor(e)
 void SabrinaFace::paint(juce::Graphics &g)
 {
     g.fillAll(kModuleFill);
-    g.setColour(juce::Colours::white.withAlpha(0.16f));
+    g.setColour(juce::Colours::white.withAlpha(0.28f));
     g.drawRect(getLocalBounds().toFloat(), 2.f);
 }
 

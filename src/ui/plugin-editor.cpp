@@ -8,6 +8,13 @@
 #include <cmath>
 #include <cstring>
 
+#if JUCE_WINDOWS
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include "sst/clap_juce_shim/menu_helper.h"
 #include "sst/plugininfra/misc_platform.h"
 #include "sst/plugininfra/paths.h"
@@ -528,10 +535,39 @@ void PluginEditor::loadJsonPreset()
                              });
 }
 
+bool PluginEditor::isStandaloneHost() const
+{
+    return clapHost != nullptr && clapHost->name != nullptr &&
+           std::strcmp(clapHost->name, "CLAP-Wrapper-As-Standalone") == 0;
+}
+
+void PluginEditor::openStandaloneAudioSettings()
+{
+#if JUCE_WINDOWS
+    if (auto *peer = getPeer())
+    {
+        auto hwnd = static_cast<HWND>(peer->getNativeHandle());
+        auto root = ::GetAncestor(hwnd, GA_ROOT);
+        if (root == nullptr)
+            root = hwnd;
+        // clap-wrapper standalone: first system-menu command is Audio/MIDI Settings.
+        ::PostMessageW(root, WM_SYSCOMMAND, 0, 0);
+    }
+#endif
+}
+
 void PluginEditor::showUiSizeMenu()
 {
     auto safe = juce::Component::SafePointer(this);
     juce::PopupMenu menu;
+    if (isStandaloneHost())
+    {
+        menu.addItem("Audio Settings", [safe]() {
+            if (safe)
+                safe->openStandaloneAudioSettings();
+        });
+        menu.addSeparator();
+    }
     menu.addSectionHeader("Preset");
     menu.addItem("Copy settings", [safe]() { if (safe) safe->copyJsonPreset(); });
     menu.addItem("Paste settings", [safe]() { if (safe) safe->pasteJsonPreset(); });
