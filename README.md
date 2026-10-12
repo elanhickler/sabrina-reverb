@@ -2,7 +2,7 @@
 
 Download: https://github.com/elanhickler/sabrina-reverb/releases
 
-<img width="250" height="500" alt="cUJXUGU65P" src="https://github.com/user-attachments/assets/13b05894-5eeb-4f73-a724-4f812b8fd167" />
+<img width="292" height="645" alt="image" src="https://github.com/user-attachments/assets/a6efe0d9-c631-4e54-be25-2574e537f8a1" />
 
 CLAP-first (VST3/AUv2 via clap-wrapper) stereo reverb plugin.
 
