@@ -40,7 +40,7 @@ const clap_plugin_descriptor *getDescriptor()
         "https://soundemote.com",
         "",
         "",
-        sst::plugininfra::VersionInformation::project_version_and_hash,
+        PRODUCT_VERSION,
         "Sabrina Reverb — stereo diffusion reverb from soemdsp.",
         &features[0]};
     return &desc;

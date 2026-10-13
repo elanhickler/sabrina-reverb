@@ -15,6 +15,9 @@ math(EXPR PART1 "${DAY_OF_YEAR} + 1")
 
 project(sabrina-reverb-clap VERSION 0.${PART0}.${PART1} LANGUAGES C CXX)
 set(PRODUCT_NAME "Sabrina Reverb")
+# User-facing version (right-click menu and CLAP descriptor). The project()
+# VERSION above changes every day so AU rescans; it is not this number.
+set(PRODUCT_VERSION "0.1.4")
 
 
 option(USE_SANITIZER "Build and link with ASAN" FALSE)
@@ -78,6 +81,7 @@ set_target_properties(${PROJECT_NAME}-impl PROPERTIES
 # Important setup variables
 target_compile_definitions(${PROJECT_NAME}-impl PRIVATE
         PRODUCT_NAME="${PRODUCT_NAME}"
+        PRODUCT_VERSION="${PRODUCT_VERSION}"
         PATCH_EXTENSION=".sabrina"
 )
 
@@ -108,6 +112,7 @@ target_link_libraries(${PROJECT_NAME}-impl PRIVATE
         sst-plugininfra::patchbase
         sst-plugininfra::version_information
         sst::clap_juce_shim sst::clap_juce_shim_headers
+        juce::juce_opengl
         soemdsp::sabrina
         soemdsp::plugin_support
         magic_enum::magic_enum

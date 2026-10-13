@@ -135,7 +135,7 @@ struct Patch : pats::PatchBase<Patch, Param>
                                 .withName("Diffusion Size")
                                 .withGroupName("Diffusion")
                                 .withID(id(1))),
-              diffusionAmount(unitRange(0.70f, 0.f, 0.98f)
+              diffusionAmount(unit01(0.70f)
                                   .withName("Diffusion Amount")
                                   .withGroupName("Diffusion")
                                   .withID(id(2))),
@@ -143,7 +143,7 @@ struct Patch : pats::PatchBase<Patch, Param>
                             .withName("Delay Time")
                             .withGroupName("Echo")
                             .withID(id(3))),
-              recycle(unitRange(0.70f, 0.f, 2.f)
+              recycle(unit01(0.70f)
                           .withName("Recycle")
                           .withGroupName("Echo")
                           .withID(id(4))),
@@ -196,8 +196,6 @@ struct Patch : pats::PatchBase<Patch, Param>
     SabrinaNode sabrina;
 
     char name[256]{"Init"};
-    // Recycle (feedback) slider maximum. 0.98 is the original cap.
-    float feedbackMax{0.98f};
 
     float migrateParamValueFromVersion(Param *p, float value, uint32_t version);
     void migratePatchFromVersion(uint32_t version);

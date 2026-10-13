@@ -16,9 +16,9 @@ struct SabrinaSoemParams
     SabrinaSoemParams()
         : mix(proto::Decimal{0.43, 0.0, 1.0, 0.0}),
           diffusionSize(proto::Decimal{0.35, 0.0, 1.0, 0.0}),
-          diffusionAmount(proto::Decimal{0.70, 0.0, 0.98, 0.0}),
+          diffusionAmount(proto::Decimal{0.70, 0.0, 1.0, 0.0}),
           delaySize(proto::Decimal{0.02, 0.0, 1.0, 0.0}),
-          recycle(proto::Decimal{0.70, 0.0, 2.0, 0.0}),
+          recycle(proto::Decimal{0.70, 0.0, 1.0, 0.0}),
           lfoAmplitude(proto::Decimal{0.07, 0.0, 1.0, 0.0}),
           lfoBaseSpeed(proto::Decimal{0.83, 0.0, 1.0, 0.0}),
           lfoVariation(proto::Decimal{0.001, 0.0, 1.0, 0.0}),

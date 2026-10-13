@@ -1,9 +1,16 @@
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <memory>
 #include <vector>
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_opengl/juce_opengl.h>
+#ifdef small
+#undef small
+#endif
 #include "patch-data-bindings.h"
 #include "plugin-editor.h"
 
@@ -73,13 +80,34 @@ struct SabrinaSlider : juce::Component, juce::TextEditor::Listener
     std::unique_ptr<juce::TextEditor> typeIn;
 };
 
-struct SabrinaWaterfall : juce::Component
+struct SabrinaWaterfall : juce::Component, private juce::OpenGLRenderer
 {
     PluginEditor *editor{nullptr};
+    SabrinaWaterfall();
+    ~SabrinaWaterfall() override;
     void pushDelayTimes(const float times[14]);
     void paint(juce::Graphics &g) override;
     void resized() override;
     void mouseUp(const juce::MouseEvent &e) override;
+    void newOpenGLContextCreated() override;
+    void renderOpenGL() override;
+    void openGLContextClosing() override;
+
+  private:
+    juce::OpenGLContext glContext;
+    std::unique_ptr<juce::OpenGLShaderProgram> shader;
+    std::unique_ptr<juce::OpenGLShaderProgram::Uniform> colourUniform;
+    std::unique_ptr<juce::OpenGLShaderProgram::Uniform> halfUniform;
+    std::unique_ptr<juce::OpenGLShaderProgram::Attribute> positionAttrib;
+    std::unique_ptr<juce::OpenGLShaderProgram::Attribute> distAttrib;
+    std::array<std::atomic<float>, 14> stemX{};
+    std::atomic<int> viewW{1};
+    std::atomic<int> viewH{1};
+    unsigned int vao{0};
+    unsigned int vbo{0};
+    std::atomic<bool> glOk{false};
+    void drawLine(float x01, float halfPx, int viewW, float r, float g, float b);
+    void paintLines(juce::Graphics &g);
 };
 
 struct SabrinaTitleBar : juce::Component, juce::TextEditor::Listener

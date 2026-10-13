@@ -140,9 +140,11 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
     if (isIdle() && !inputAwake)
     {
         memset(output, 0, sizeof(output));
-        return;
+        if (!isEditorAttached.load(std::memory_order_relaxed) || sabrinaHandle <= 0)
+            return;
+        soemdsp_sabrina_reverb_advance_mod(sabrinaHandle, (int)blockSize);
     }
-
+    else
     for (int i = 0; i < blockSize; ++i)
     {
         const bool validFrame = hasInput && static_cast<uint32_t>(i) < inputFrameCount;
@@ -164,7 +166,7 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
         }
     }
 
-    if (isEditorAttached)
+    if (isEditorAttached.load(std::memory_order_relaxed))
     {
         if (++lastScopeUpdate >= 100)
         {
@@ -286,30 +288,6 @@ void Engine::processUIQueue(const clap_output_events_t *outq)
             audioRunning = true;
         }
         break;
-        case MainToAudioMsg::SET_FEEDBACK_MAX:
-        {
-            const float allowed[] = {0.98f, 1.f, 1.2f, 1.3f, 1.4f, 1.5f, 2.f};
-            float chosen = allowed[0];
-            float best = std::fabs(uiM->value - chosen);
-            for (float step : allowed)
-            {
-                const float d = std::fabs(uiM->value - step);
-                if (d < best)
-                {
-                    best = d;
-                    chosen = step;
-                }
-            }
-            patch.feedbackMax = chosen;
-            if (sabrinaHandle > 0)
-                soemdsp_sabrina_reverb_set_feedback_max(sabrinaHandle, chosen);
-            if (patch.sabrina.recycle.value > chosen)
-                handleParamValue(&patch.sabrina.recycle, patch.sabrina.recycle.meta.id, chosen);
-            audioToUi.push({AudioToUIMsg::SET_FEEDBACK_MAX, 0, chosen});
-            onMainRescanInfo = true;
-            clapHost->request_callback(clapHost);
-        }
-        break;
         case MainToAudioMsg::SEND_PATCH_NAME:
         {
             memset(patch.name, 0, sizeof(patch.name));
@@ -342,7 +320,13 @@ void Engine::processUIQueue(const clap_output_events_t *outq)
         break;
         case MainToAudioMsg::EDITOR_ATTACH_DETATCH:
         {
-            isEditorAttached = uiM->paramId;
+            const bool attached = uiM->paramId != 0;
+            isEditorAttached.store(attached, std::memory_order_relaxed);
+            if (attached)
+            {
+                onMainRescanInfo = true;
+                clapHost->request_callback(clapHost);
+            }
         }
         break;
         }
@@ -373,7 +357,6 @@ void Engine::pushFullUIRefresh()
         audioToUi.push(au);
     }
     audioToUi.push({AudioToUIMsg::SET_PATCH_NAME, 0, 0, 0, patch.name});
-    audioToUi.push({AudioToUIMsg::SET_FEEDBACK_MAX, 0, patch.feedbackMax});
     audioToUi.push({AudioToUIMsg::SET_PATCH_DIRTY_STATE, patch.dirty});
     audioToUi.push({AudioToUIMsg::SEND_SAMPLE_RATE, 0, (float)sampleRate});
 }

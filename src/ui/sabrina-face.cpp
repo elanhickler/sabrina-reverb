@@ -1,7 +1,6 @@
-﻿#include "sabrina-face.h"
+#include "sabrina-face.h"
 
 #include <cmath>
-#include <unordered_map>
 
 namespace soundemote::sabrina::ui
 {
@@ -25,25 +24,33 @@ juce::Font sandboxMono(float height)
                          .withFallbackEnabled());
 }
 
-constexpr int kDelayPlateW{512};
-constexpr int kDelayPlateH{128};
-constexpr float kStemCssPx{2.f};
-constexpr float kAaCssPx{1.f};
-constexpr float kFaceDesignW{234.f};
-constexpr float kTrail{0.3f};
-constexpr float kGhost{0.25f};
+// 1 px core at the 234-wide spawn. The display is inset by kInset on each side.
+constexpr float kStemMinPx{1.f};
+constexpr float kDisplayBaseW{234.f - 2.f * (float)kInset};
 
-std::unordered_map<const void *, juce::Image> gDelayPlates;
+const char *kLineVert = R"(
+attribute vec2 position;
+attribute float distPx;
+varying float vDist;
+void main() {
+    gl_Position = vec4(position, 0.0, 1.0);
+    vDist = distPx;
+}
+)";
+const char *kLineFrag = R"(
+uniform vec4 colour;
+uniform float halfPx;
+varying float vDist;
+void main() {
+    float a = 1.0 - smoothstep(halfPx, halfPx + 2.0, abs(vDist));
+    gl_FragColor = vec4(colour.rgb, a);
+}
+)";
 
-juce::Image &delayPlateFor(PluginEditor &editor)
+float stemWidthPx(int displayW)
 {
-    auto &img = gDelayPlates[static_cast<const void *>(&editor.audioToUI)];
-    if (img.isNull() || img.getWidth() != kDelayPlateW || img.getHeight() != kDelayPlateH)
-    {
-        img = juce::Image(juce::Image::RGB, kDelayPlateW, kDelayPlateH, true);
-        img.clear(img.getBounds(), juce::Colour(0xff000004));
-    }
-    return img;
+    const float base = juce::jmax(1.f, kDisplayBaseW);
+    return juce::jmax(kStemMinPx, kStemMinPx * (float)displayW / base);
 }
 } // namespace
 
@@ -327,92 +334,173 @@ void SabrinaSlider::mouseWheelMove(const juce::MouseEvent &e, const juce::MouseW
     endGesture();
 }
 
-void SabrinaWaterfall::pushDelayTimes(const float times[14])
+SabrinaWaterfall::SabrinaWaterfall()
 {
-    if (!editor)
-        return;
+    setOpaque(true);
+    for (auto &x : stemX)
+        x.store(0.5f);
+    glContext.setOpenGLVersionRequired(juce::OpenGLContext::openGL3_2);
+    glContext.setRenderer(this);
+    glContext.setComponentPaintingEnabled(false);
+    glContext.setContinuousRepainting(false);
+    glContext.attachTo(*this);
+}
 
-    auto &plate = delayPlateFor(*editor);
-    const int w = plate.getWidth();
-    const int h = plate.getHeight();
-    juce::Image::BitmapData bits(plate, juce::Image::BitmapData::readWrite);
+SabrinaWaterfall::~SabrinaWaterfall()
+{
+    glContext.detach();
+}
 
-    const float keep = juce::jlimit(0.f, 0.995f, kTrail * 0.97f + kGhost * 0.02f);
-    for (int y = 0; y < h; ++y)
+void SabrinaWaterfall::newOpenGLContextCreated()
+{
+    using namespace juce::gl;
+    shader = std::make_unique<juce::OpenGLShaderProgram>(glContext);
+    if (!shader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(kLineVert)) ||
+        !shader->addFragmentShader(juce::OpenGLHelpers::translateFragmentShaderToV3(kLineFrag)) ||
+        !shader->link())
     {
-        for (int x = 0; x < w; ++x)
+        shader.reset();
+        glOk.store(false);
+        juce::MessageManager::callAsync([this] {
+            glContext.setComponentPaintingEnabled(true);
+            repaint();
+        });
+        return;
+    }
+    colourUniform = std::make_unique<juce::OpenGLShaderProgram::Uniform>(*shader, "colour");
+    halfUniform = std::make_unique<juce::OpenGLShaderProgram::Uniform>(*shader, "halfPx");
+    positionAttrib = std::make_unique<juce::OpenGLShaderProgram::Attribute>(*shader, "position");
+    distAttrib = std::make_unique<juce::OpenGLShaderProgram::Attribute>(*shader, "distPx");
+    if (glGenVertexArrays != nullptr)
+        glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glOk.store(vbo != 0);
+}
+
+void SabrinaWaterfall::openGLContextClosing()
+{
+    using namespace juce::gl;
+    glOk.store(false);
+    colourUniform.reset();
+    halfUniform.reset();
+    positionAttrib.reset();
+    distAttrib.reset();
+    shader.reset();
+    if (vao != 0 && glDeleteVertexArrays != nullptr)
+        glDeleteVertexArrays(1, &vao);
+    if (vbo != 0)
+        glDeleteBuffers(1, &vbo);
+    vao = 0;
+    vbo = 0;
+}
+
+void SabrinaWaterfall::drawLine(float x01, float halfPx, int viewW, float r, float g, float b)
+{
+    using namespace juce::gl;
+    if (!shader || !colourUniform || !halfUniform || !positionAttrib || !distAttrib || vbo == 0)
+        return;
+    const float w = (float)juce::jmax(1, viewW);
+    const float pad = 2.f;
+    const float reach = halfPx + pad;
+    const float xPx = juce::jlimit(0.f, 1.f, x01) * w;
+    const auto ndc = [w](float px) { return (px / w) * 2.f - 1.f; };
+    const float x0 = ndc(xPx - reach);
+    const float x1 = ndc(xPx + reach);
+    const float verts[] = {
+        x0, -1.f, -reach, x1, -1.f, reach, x0, 1.f, -reach, x1, 1.f, reach,
+    };
+    shader->use();
+    colourUniform->set(r, g, b, 1.f);
+    halfUniform->set(halfPx);
+    if (vao != 0 && glBindVertexArray != nullptr)
+        glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(verts), verts, GL_STREAM_DRAW);
+    const auto pos = (GLuint)positionAttrib->attributeID;
+    const auto dist = (GLuint)distAttrib->attributeID;
+    glEnableVertexAttribArray(pos);
+    glEnableVertexAttribArray(dist);
+    glVertexAttribPointer(pos, 2, GL_FLOAT, GL_FALSE, (GLsizei)(3 * sizeof(float)), nullptr);
+    glVertexAttribPointer(dist, 1, GL_FLOAT, GL_FALSE, (GLsizei)(3 * sizeof(float)),
+                          (const void *)(2 * sizeof(float)));
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+void SabrinaWaterfall::renderOpenGL()
+{
+    using namespace juce::gl;
+    if (!glOk.load() || !shader)
+        return;
+    const float scale = (float)glContext.getRenderingScale();
+    const int w = juce::jmax(1, viewW.load());
+    const int h = juce::jmax(1, viewH.load());
+    glViewport(0, 0, juce::jmax(1, juce::roundToInt((float)w * scale)),
+               juce::jmax(1, juce::roundToInt((float)h * scale)));
+    juce::OpenGLHelpers::clear(juce::Colours::black);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    const float halfPx = stemWidthPx(w) * 0.5f;
+    auto drawAt = [&](float x01, float r, float g, float b) { drawLine(x01, halfPx, w, r, g, b); };
+    for (int i = 0; i < 14; ++i)
+    {
+        if (i >= 12)
+            drawAt(stemX[(size_t)i].load(), 86.f / 255.f, 206.f / 255.f, 118.f / 255.f);
+        else
         {
-            const auto c = bits.getPixelColour(x, y);
-            bits.setPixelColour(x, y,
-                                juce::Colour::fromRGB((juce::uint8)(c.getRed() * keep),
-                                                      (juce::uint8)(c.getGreen() * keep),
-                                                      (juce::uint8)(c.getBlue() * keep)));
+            const bool right = (i & 1) != 0;
+            drawAt(stemX[(size_t)i].load(), right ? 110.f / 255.f : 1.f, 130.f / 255.f,
+                   right ? 1.f : 110.f / 255.f);
         }
     }
+}
 
-    const float cssToPlate = (float)w / kFaceDesignW;
-    const float solidW = juce::jmax(2.f * cssToPlate, kStemCssPx * cssToPlate);
-    const float aaW = juce::jmax(0.f, kAaCssPx * cssToPlate);
-    auto stampStem = [&](float x01, bool right)
-    {
-        const float xCenter = juce::jlimit(0.f, 1.f, x01) * (float)w;
-        const float left = xCenter - solidW * 0.5f;
-        const float rightEdge = left + solidW;
-        const int i0 = (int)std::floor(left - aaW);
-        const int i1 = (int)std::ceil(rightEdge + aaW) - 1;
-        const int rAdd = right ? 110 : 255;
-        const int gAdd = 130;
-        const int bAdd = right ? 255 : 110;
-        for (int ix = i0; ix <= i1; ++ix)
-        {
-            if (ix < 0 || ix >= w)
-                continue;
-            const float c = (float)ix + 0.5f;
-            float gain = 0.f;
-            if (c >= left && c <= rightEdge)
-                gain = 1.f;
-            else if (aaW > 0.f && c < left)
-                gain = juce::jmax(0.f, 1.f - (left - c) / aaW);
-            else if (aaW > 0.f)
-                gain = juce::jmax(0.f, 1.f - (c - rightEdge) / aaW);
-            if (!(gain > 0.f))
-                continue;
-            const int addR = (int)std::lround((float)rAdd * gain);
-            const int addG = (int)std::lround((float)gAdd * gain);
-            const int addB = (int)std::lround((float)bAdd * gain);
-            for (int y = 0; y < h; ++y)
-            {
-                const auto c = bits.getPixelColour(ix, y);
-                bits.setPixelColour(ix, y,
-                                    juce::Colour::fromRGB(
-                                        (juce::uint8)juce::jmin(255, c.getRed() + addR),
-                                        (juce::uint8)juce::jmin(255, c.getGreen() + addG),
-                                        (juce::uint8)juce::jmin(255, c.getBlue() + addB)));
-            }
-        }
+void SabrinaWaterfall::paintLines(juce::Graphics &g)
+{
+    const auto r = getLocalBounds().toFloat();
+    const float hw = stemWidthPx(juce::jmax(1, getWidth())) * 0.5f;
+    auto drawAt = [&](float x01, juce::Colour colour) {
+        const float x = r.getX() + juce::jlimit(0.f, 1.f, x01) * r.getWidth();
+        g.setColour(colour);
+        g.fillRect(x - hw, r.getY(), hw * 2.f, r.getHeight());
     };
-
     for (int i = 0; i < 14; ++i)
-        stampStem(times[i], (i & 1) != 0);
-    repaint();
+    {
+        if (i >= 12)
+            drawAt(stemX[(size_t)i].load(), juce::Colour::fromRGB(86, 206, 118));
+        else
+            drawAt(stemX[(size_t)i].load(),
+                   (i & 1) != 0 ? juce::Colour::fromRGB(110, 130, 255)
+                                : juce::Colour::fromRGB(255, 130, 110));
+    }
+}
+
+void SabrinaWaterfall::pushDelayTimes(const float times[14])
+{
+    for (int i = 0; i < 14; ++i)
+        stemX[(size_t)i].store(times[i]);
+    if (glOk.load())
+        glContext.triggerRepaint();
+    else
+        repaint();
 }
 
 void SabrinaWaterfall::resized()
 {
-    repaint();
+    viewW.store(juce::jmax(1, getWidth()));
+    viewH.store(juce::jmax(1, getHeight()));
+    if (glOk.load())
+        glContext.triggerRepaint();
+    else
+        repaint();
 }
 
 void SabrinaWaterfall::paint(juce::Graphics &g)
 {
+    if (glOk.load())
+        return;
     g.fillAll(juce::Colours::black);
-    if (editor)
-    {
-        auto &plate = delayPlateFor(*editor);
-        g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
-        g.drawImage(plate, getLocalBounds().toFloat());
-    }
-    g.setColour(juce::Colour(0xff1c2228));
-    g.drawRect(getLocalBounds(), 1);
+    paintLines(g);
 }
 
 void SabrinaTitleBar::paint(juce::Graphics &g)

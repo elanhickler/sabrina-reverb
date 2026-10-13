@@ -11,7 +11,6 @@ extern "C" {
 int soemdsp_sabrina_reverb_create(double sampleRate);
 void soemdsp_sabrina_reverb_destroy(int handle);
 void soemdsp_sabrina_reverb_reset(int handle, double sampleRate);
-void soemdsp_sabrina_reverb_set_feedback_max(int handle, double maxValue);
 void soemdsp_sabrina_reverb_set_params(int handle, double mix, double diffusionSize,
                                       double diffusionAmount, double delaySize, double recycle,
                                       double lfoAmplitude, double lfoBaseSpeed,
@@ -24,6 +23,7 @@ double soemdsp_sabrina_reverb_wet_right(int handle);
 int soemdsp_sabrina_reverb_is_idle(int handle);
 int soemdsp_sabrina_reverb_version();
 void soemdsp_sabrina_reverb_delay_times(int handle, float *out14);
+void soemdsp_sabrina_reverb_advance_mod(int handle, int sampleCount);
 
 #ifdef __cplusplus
 }

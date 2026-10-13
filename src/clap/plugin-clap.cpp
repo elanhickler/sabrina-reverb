@@ -5,10 +5,9 @@
 
 #include "configuration.h"
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
-#include <string>
 #include <clap/clap.h>
+#include <clap/ext/tail.h>
 #include <chrono>
 
 #include <clap/helpers/plugin.hh>
@@ -197,7 +196,7 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
             else
                 nextEvent = nullptr;
         }
-        if (engine->isIdle())
+        if (engine->isIdle() && !engine->isEditorAttached.load(std::memory_order_relaxed))
             return CLAP_PROCESS_SLEEP;
         return CLAP_PROCESS_CONTINUE;
     }
@@ -205,8 +204,12 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
     bool implementsTail() const noexcept override { return true; }
     uint32_t tailGet() const noexcept override
     {
-        // Stay scheduled until SilenceDetector trips (~1s of quiet input+tail).
-        return engine && engine->isIdle() ? 0 : UINT32_MAX;
+        if (!engine)
+            return 0;
+        // UI open: stay scheduled so the LFOs can keep moving with no input.
+        if (engine->isEditorAttached.load(std::memory_order_relaxed))
+            return UINT32_MAX;
+        return engine->isIdle() ? 0 : UINT32_MAX;
     }
 
     void reset() noexcept override {}
@@ -246,26 +249,7 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
             engine->prepForStream();
         }
 
-        auto xml = engine->patch.toState();
-        const auto tag = std::string(" feedbackMax=\"") + std::to_string(engine->patch.feedbackMax) +
-                         "\"";
-        const auto at = xml.find("<patch ");
-        if (at != std::string::npos)
-            xml.insert(at + 7, tag);
-        auto c = xml.c_str();
-        auto s = xml.size() + 1;
-        bool res = true;
-        while (s > 0)
-        {
-            auto r = ostream->write(ostream, c, s);
-            if (r < 0)
-            {
-                res = false;
-                break;
-            }
-            s -= (size_t)r;
-            c += r;
-        }
+        auto res = sst::plugininfra::patch_support::patchToOutStream(engine->patch, ostream);
         engine->readyForStream = false;
 
         return res;
@@ -273,35 +257,12 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
 
     bool stateLoad(const clap_istream *istream) noexcept override
     {
-        std::string data;
-        data.resize(1 << 16);
-        size_t total = 0;
-        while (true)
-        {
-            if (total + 256 >= data.size())
-                data.resize(data.size() * 2);
-            auto rd = istream->read(istream, data.data() + total, 256);
-            if (rd < 0)
-                return false;
-            if (rd == 0)
-                break;
-            total += (size_t)rd;
-        }
-        if (total == 0)
-            return false;
-        data.resize(total);
         Patch patchCopy;
-        if (!patchCopy.fromState(data))
+        if (!sst::plugininfra::patch_support::inStreamToPatch(istream, patchCopy))
             return false;
-        const auto key = std::string("feedbackMax=\"");
-        const auto pos = data.find(key);
-        if (pos != std::string::npos)
-            patchCopy.feedbackMax = std::strtof(data.c_str() + pos + key.size(), nullptr);
 
         presets::PresetManager::sendEntirePatchToAudio(patchCopy, engine->mainToAudio,
                                                        patchCopy.name, _host.host());
-        engine->mainToAudio.push(
-            {Engine::MainToAudioMsg::SET_FEEDBACK_MAX, 0, patchCopy.feedbackMax});
         if (_host.canUseParams())
         {
             _host.paramsRescan(CLAP_PARAM_RESCAN_VALUES);
@@ -352,6 +313,14 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
     ADD_SHIM_LINUX_TIMER(clapJuceShim)
     std::unique_ptr<juce::Component> createEditor() override
     {
+        engine->isEditorAttached.store(true, std::memory_order_relaxed);
+        if (_host.host()->request_process)
+            _host.host()->request_process(_host.host());
+        if (auto *tail = static_cast<const clap_host_tail_t *>(
+                _host.host()->get_extension(_host.host(), CLAP_EXT_TAIL)))
+            if (tail->changed)
+                tail->changed(_host.host());
+
         auto res = std::make_unique<soundemote::sabrina::ui::PluginEditor>(
             engine->audioToUi, engine->mainToAudio, _host.host());
 

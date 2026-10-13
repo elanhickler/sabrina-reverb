@@ -101,7 +101,6 @@ struct SabrinaState {
   double diffusionAmount;
   double delaySize;
   double recycle;
-  double feedbackMax{0.98};
   double lfoAmplitude;
   double lfoBaseSpeed;
   double lfoVariation;
@@ -184,17 +183,31 @@ double readDelay(const SabrinaDelay& delay, double where) {
   return delay.buffer[before] * (1.0 - mix) + delay.buffer[after] * mix;
 }
 
+// fbm1d is already 0..1, but 4 octaves at persistence 0.5 stay near 0.5
+// (std ~0.15). Parabol's 0..1 map has std ~0.37 and hits both ends every
+// cycle. Stretch FBM around 0.5 so the same Mod Amp moves the delay as far.
+constexpr double kFbmDepth = 2.4;
+
+double fbmModUni(double time, unsigned int seed) {
+  const double y = (fbm1d(time, 4, 0.5, 1.0, seed) - 0.5) * kFbmDepth + 0.5;
+  if (y < 0.0)
+    return 0.0;
+  if (y > 1.0)
+    return 1.0;
+  return y;
+}
+
 double sabrinaModUni(SabrinaDelay& delay) {
   delay.modInc += delay.modSpeed;
   if (delay.lfoStyle == 1) {
-    return fbm1d(delay.modInc, 4, 0.5, 1.0, delay.fbmSeed);
+    return fbmModUni(delay.modInc, delay.fbmSeed);
   }
   return parabol(delay.modInc) * 0.5 + 0.5;
 }
 
 double sabrinaPeekModUni(const SabrinaDelay& delay) {
   if (delay.lfoStyle == 1) {
-    return fbm1d(delay.modInc, 4, 0.5, 1.0, delay.fbmSeed);
+    return fbmModUni(delay.modInc, delay.fbmSeed);
   }
   return parabol(delay.modInc) * 0.5 + 0.5;
 }
@@ -247,10 +260,10 @@ void sabrinaModUniPair(SabrinaDelay& delayL, SabrinaDelay& delayR, double& lfoL,
   delayR.modInc += delayR.modSpeed;
   if (delayL.lfoStyle == 1 || delayR.lfoStyle == 1) {
     lfoL = delayL.lfoStyle == 1
-      ? fbm1d(delayL.modInc, 4, 0.5, 1.0, delayL.fbmSeed)
+      ? fbmModUni(delayL.modInc, delayL.fbmSeed)
       : parabol(delayL.modInc) * 0.5 + 0.5;
     lfoR = delayR.lfoStyle == 1
-      ? fbm1d(delayR.modInc, 4, 0.5, 1.0, delayR.fbmSeed)
+      ? fbmModUni(delayR.modInc, delayR.fbmSeed)
       : parabol(delayR.modInc) * 0.5 + 0.5;
     return;
   }
@@ -397,10 +410,15 @@ void applyDiffusionGeometryPairSimd(
 void applyDelayGeometry(SabrinaState& state) {
   const double maxDelaySize = state.sampleRate * 4.0;
   const double lfoSpeed = ((1.0 - state.smoothedLfoBaseSpeed) * 1.95 + 0.5) * 0.5;
-  const double lfoVariation = (1.0 - state.smoothedLfoVariation) * 0.25;
+  // Parabol period spread stays 0..0.25 s. FBM uses a wider spread so Mod Vary
+  // separates the lines; the knob still runs from full spread down to none.
+  const double lfoVariation = (1.0 - state.smoothedLfoVariation) * (state.lfoStyle == 1 ? 1.0 : 0.25);
   const double diffusionSizeFactor = state.smoothedDiffusionSize * 0.1 + 0.0000001;
   const double sharedFeedback = state.diffusionAmount;
-  const double sharedLfopercent = state.smoothedLfoAmplitude * 0.1;
+  // Parabol depth stays amplitude * 0.1. FBM is 4x that so the same Mod Amp
+  // moves the delay about as far.
+  const double ampScale = state.lfoStyle == 1 ? 0.4 : 0.1;
+  const double sharedLfopercent = state.smoothedLfoAmplitude * ampScale;
   static_assert(kDiffusionCount % 2 == 0, "diffusion geometry SIMD kernel processes delay lines in pairs");
   for (int index = 0; index < kDiffusionCount; index += 2) {
     SabrinaDelay& delayA = state.delays[index];
@@ -414,7 +432,7 @@ void applyDelayGeometry(SabrinaState& state) {
   for (int index = kDiffusionCount; index < kDelayCount; index += 1) {
     SabrinaDelay& delay = state.delays[index];
     delay.offset = (maxDelaySize - 2.0) * state.smoothedDelaySize * 0.1 + 1.0;
-    delay.lfopercent = state.smoothedLfoAmplitude * 0.1;
+    delay.lfopercent = state.smoothedLfoAmplitude * ampScale;
     initializeMod(delay, lfoSpeed, lfoVariation, state.sampleRate);
   }
 }
@@ -679,9 +697,8 @@ extern "C" void soemdsp_sabrina_reverb_set_params(
 
   // LIVE — assign only (read in process / drywet).
   assignIf(state->mix, clamp(mix, 0.0, 1.0));
-  const double feedbackTop = state->feedbackMax > 0.98 ? state->feedbackMax : 0.98;
-  assignIf(state->recycle, clamp(recycle, 0.0, feedbackTop));
-  assignIf(state->diffusionAmount, clamp(diffusionAmount, 0.0, 0.98));
+  assignIf(state->recycle, clamp(recycle, 0.0, 1.0));
+  assignIf(state->diffusionAmount, clamp(diffusionAmount, 0.0, 1.0));
 
   // CONTROL — targets for smoothed geometry (*Changed ownership).
   assignIf(state->diffusionSize, clamp(diffusionSize, 0.0, 1.0));
@@ -817,13 +834,15 @@ extern "C" int soemdsp_sabrina_reverb_is_idle(int handle) {
   return state && state->isIdle ? 1 : 0;
 }
 
-extern "C" void soemdsp_sabrina_reverb_set_feedback_max(int handle, double maxValue) {
+extern "C" void soemdsp_sabrina_reverb_advance_mod(int handle, int sampleCount) {
   SabrinaState* state = stateForHandle(handle);
-  if (!state)
+  if (!state || sampleCount <= 0)
     return;
-  state->feedbackMax = clamp(maxValue, 0.98, 2.0);
-  if (state->recycle > state->feedbackMax)
-    state->recycle = state->feedbackMax;
+  for (int n = 0; n < sampleCount; ++n) {
+    advanceSabrinaSmoothing(*state);
+    for (int i = 0; i < kDelayCount; ++i)
+      state->delays[i].modInc += state->delays[i].modSpeed;
+  }
 }
 
 extern "C" int soemdsp_sabrina_reverb_version() {
@@ -831,13 +850,9 @@ extern "C" int soemdsp_sabrina_reverb_version() {
 }
 
 void sabrinaFillDelay01(const SabrinaState &state, double times[kDelayCount]) {
-  // Display X is delay length, left = short, right = the longest tap in this
-  // patch. Diffusion lines use seed (rndOffset) times Diffusion Size, so a new
-  // seed reshuffles them. The two non-diffusion lines share Delay Time and
-  // only separate while the LFO moves. The read head is
-  // offset * (1 + lfo * lfopercent), same as delaySample.
-  double lens[kDelayCount];
-  double axis = 1.0;
+  // Linear time. Left is 0. Right is the longest tap this reverb can make, 0.44 s.
+  constexpr double kTimeMax = 4.0 * 0.1 * 1.1;
+  const double sr = state.sampleRate > 1.0 ? state.sampleRate : 1.0;
   for (int i = 0; i < kDelayCount; ++i) {
     const SabrinaDelay &d = state.delays[i];
     double lfo = sabrinaPeekModUni(d);
@@ -845,18 +860,12 @@ void sabrinaFillDelay01(const SabrinaState &state, double times[kDelayCount]) {
       lfo = 0.0;
     if (lfo > 1.0)
       lfo = 1.0;
-    lens[i] = d.offset * (1.0 + lfo * d.lfopercent);
-    const double reach = d.offset * (1.0 + (d.lfopercent > 0.0 ? d.lfopercent : 0.0));
-    if (reach > axis)
-      axis = reach;
-  }
-  for (int i = 0; i < kDelayCount; ++i) {
-    double x = lens[i] / axis;
-    if (x < 0.0)
-      x = 0.0;
-    if (x > 1.0)
-      x = 1.0;
-    times[i] = x;
+    double t = d.offset * (1.0 + lfo * d.lfopercent) / sr / kTimeMax;
+    if (t < 0.0)
+      t = 0.0;
+    if (t > 1.0)
+      t = 1.0;
+    times[i] = t;
   }
 }
 

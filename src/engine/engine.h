@@ -49,8 +49,8 @@ struct Engine
                  uint32_t inputChannelCount, uint32_t inputFrameCount);
     void processUIQueue(const clap_output_events_t *);
 
-    // Matches sandbox sabrinaIdleFromPorts / soemdsp SilenceDetector:
-    // ~1s of input+tail below Planck → skip delay network and let CLAP sleep.
+    // SilenceDetector: ~1s of input+tail below Planck. Delay network stops.
+    // LFOs keep running only while the editor is open.
     bool isIdle() const;
 
     void handleParamValue(Param *p, uint32_t pid, float value);
@@ -62,7 +62,6 @@ struct Engine
         {
             UPDATE_PARAM,
             SET_PATCH_NAME,
-            SET_FEEDBACK_MAX,
             SET_PATCH_DIRTY_STATE,
             DO_PARAM_RESCAN,
             SEND_SAMPLE_RATE,
@@ -85,7 +84,6 @@ struct Engine
             STOP_AUDIO,
             START_AUDIO,
             SEND_PATCH_NAME,
-            SET_FEEDBACK_MAX,
             SEND_PATCH_IS_CLEAN,
             SEND_POST_LOAD,
             SEND_REQUEST_RESCAN,
@@ -101,7 +99,7 @@ struct Engine
     audioToUIQueue_t audioToUi;
     mainToAudioQueue_T mainToAudio;
     std::atomic<bool> doFullRefresh{false};
-    bool isEditorAttached{false};
+    std::atomic<bool> isEditorAttached{false};
     sst::basic_blocks::dsp::UIComponentLagHandler lagHandler;
 
     std::atomic<bool> readyForStream{false};
