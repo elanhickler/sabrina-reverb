@@ -423,7 +423,10 @@ void SabrinaTitleBar::paint(juce::Graphics &g)
     g.setGradientFill(grad);
     g.fillRect(bounds);
 
-    const juce::String title{PRODUCT_NAME};
+    if (typeIn)
+        return;
+
+    const juce::String title = editor ? editor->displayTitle() : juce::String(PRODUCT_NAME);
     const float pad = 6.f;
     const float maxH = juce::jmax(8.f, bounds.getHeight() * 0.86f);
     const float maxW = juce::jmax(8.f, bounds.getWidth() - pad * 2.f);
@@ -444,9 +447,91 @@ void SabrinaTitleBar::paint(juce::Graphics &g)
 
 void SabrinaTitleBar::mouseUp(const juce::MouseEvent &e)
 {
+    if (typeIn)
+        return;
     if (e.mods.isPopupMenu() && editor)
         editor->showUiSizeMenu();
 }
+
+void SabrinaTitleBar::mouseDoubleClick(const juce::MouseEvent &e)
+{
+    if (e.mods.isPopupMenu() || e.mods.isAltDown() || !editor)
+        return;
+    beginEdit();
+}
+
+void SabrinaTitleBar::fitEditFont()
+{
+    if (!typeIn)
+        return;
+    const auto bounds = getLocalBounds().toFloat();
+    const float maxH = juce::jmax(8.f, bounds.getHeight() * 0.86f);
+    const float maxW = juce::jmax(8.f, bounds.getWidth() - 12.f);
+    juce::Font font = sandboxMono(maxH);
+    auto text = typeIn->getText();
+    if (text.isEmpty())
+        text = " ";
+    const float textW = juce::jmax(1.f, font.getStringWidthFloat(text));
+    if (textW > maxW)
+        font = sandboxMono(maxH * maxW / textW);
+    typeIn->applyFontToAllText(font);
+}
+
+void SabrinaTitleBar::beginEdit()
+{
+    if (!editor || typeIn)
+        return;
+    typeIn = std::make_unique<juce::TextEditor>();
+    typeIn->setMultiLine(false);
+    typeIn->setReturnKeyStartsNewLine(false);
+    typeIn->setJustification(juce::Justification::centred);
+    typeIn->setIndents(0, 0);
+    typeIn->setBorder(juce::BorderSize<int>());
+    typeIn->setColour(juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
+    typeIn->setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    typeIn->setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    typeIn->setColour(juce::TextEditor::textColourId, kTitle);
+    typeIn->setColour(juce::TextEditor::highlightColourId, kPosition);
+    typeIn->setInputRestrictions(80);
+    typeIn->setText(editor->displayTitle(), juce::dontSendNotification);
+    typeIn->addListener(this);
+    addAndMakeVisible(*typeIn);
+    typeIn->setBounds(getLocalBounds().reduced(6, 0));
+    fitEditFont();
+    typeIn->grabKeyboardFocus();
+    typeIn->selectAll();
+    repaint();
+}
+
+void SabrinaTitleBar::commitEdit()
+{
+    if (!typeIn || committing)
+        return;
+    committing = true;
+    const auto text = typeIn->getText();
+    typeIn->removeListener(this);
+    removeChildComponent(typeIn.get());
+    typeIn.reset();
+    committing = false;
+    if (editor)
+        editor->setModuleTitle(text);
+    repaint();
+}
+
+void SabrinaTitleBar::cancelEdit()
+{
+    if (!typeIn)
+        return;
+    typeIn->removeListener(this);
+    removeChildComponent(typeIn.get());
+    typeIn.reset();
+    repaint();
+}
+
+void SabrinaTitleBar::textEditorReturnKeyPressed(juce::TextEditor &) { commitEdit(); }
+void SabrinaTitleBar::textEditorEscapeKeyPressed(juce::TextEditor &) { cancelEdit(); }
+void SabrinaTitleBar::textEditorFocusLost(juce::TextEditor &) { commitEdit(); }
+void SabrinaTitleBar::textEditorTextChanged(juce::TextEditor &) { fitEditFont(); }
 
 void SabrinaWaterfall::mouseUp(const juce::MouseEvent &e)
 {

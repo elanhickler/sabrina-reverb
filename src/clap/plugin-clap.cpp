@@ -5,7 +5,9 @@
 
 #include "configuration.h"
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 #include <clap/clap.h>
 #include <chrono>
 
@@ -244,7 +246,26 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
             engine->prepForStream();
         }
 
-        auto res = sst::plugininfra::patch_support::patchToOutStream(engine->patch, ostream);
+        auto xml = engine->patch.toState();
+        const auto tag = std::string(" feedbackMax=\"") + std::to_string(engine->patch.feedbackMax) +
+                         "\"";
+        const auto at = xml.find("<patch ");
+        if (at != std::string::npos)
+            xml.insert(at + 7, tag);
+        auto c = xml.c_str();
+        auto s = xml.size() + 1;
+        bool res = true;
+        while (s > 0)
+        {
+            auto r = ostream->write(ostream, c, s);
+            if (r < 0)
+            {
+                res = false;
+                break;
+            }
+            s -= (size_t)r;
+            c += r;
+        }
         engine->readyForStream = false;
 
         return res;
@@ -252,12 +273,35 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
 
     bool stateLoad(const clap_istream *istream) noexcept override
     {
-        Patch patchCopy;
-        if (!sst::plugininfra::patch_support::inStreamToPatch(istream, patchCopy))
+        std::string data;
+        data.resize(1 << 16);
+        size_t total = 0;
+        while (true)
+        {
+            if (total + 256 >= data.size())
+                data.resize(data.size() * 2);
+            auto rd = istream->read(istream, data.data() + total, 256);
+            if (rd < 0)
+                return false;
+            if (rd == 0)
+                break;
+            total += (size_t)rd;
+        }
+        if (total == 0)
             return false;
+        data.resize(total);
+        Patch patchCopy;
+        if (!patchCopy.fromState(data))
+            return false;
+        const auto key = std::string("feedbackMax=\"");
+        const auto pos = data.find(key);
+        if (pos != std::string::npos)
+            patchCopy.feedbackMax = std::strtof(data.c_str() + pos + key.size(), nullptr);
 
         presets::PresetManager::sendEntirePatchToAudio(patchCopy, engine->mainToAudio,
                                                        patchCopy.name, _host.host());
+        engine->mainToAudio.push(
+            {Engine::MainToAudioMsg::SET_FEEDBACK_MAX, 0, patchCopy.feedbackMax});
         if (_host.canUseParams())
         {
             _host.paramsRescan(CLAP_PARAM_RESCAN_VALUES);
@@ -325,16 +369,9 @@ template <bool multiOut> struct SabrinaPlugin : public plugHelper_t, sst::clap_j
             }
         };
 
-        onShow = [safeEd]()
-        {
-            if (!safeEd)
-                return true;
-            safeEd->setSize(
-                juce::roundToInt((float)soundemote::sabrina::ui::PluginEditor::edWidth *
-                                 safeEd->zoomFactor),
-                juce::roundToInt((float)safeEd->designHeight() * safeEd->zoomFactor));
-            return true;
-        };
+        // Preferred size is set in the editor constructor and reported by guiGetSize.
+        // Do not setSize again in onShow: REAPER calls set_size, then show, and a
+        // second setSize leaves the face at 234x516 inside a different host window.
         // res->sneakyStartupGrabFrom(engine->patch);
         res->repaint();
 

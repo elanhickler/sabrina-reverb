@@ -11,6 +11,7 @@ extern "C" {
 int soemdsp_sabrina_reverb_create(double sampleRate);
 void soemdsp_sabrina_reverb_destroy(int handle);
 void soemdsp_sabrina_reverb_reset(int handle, double sampleRate);
+void soemdsp_sabrina_reverb_set_feedback_max(int handle, double maxValue);
 void soemdsp_sabrina_reverb_set_params(int handle, double mix, double diffusionSize,
                                       double diffusionAmount, double delaySize, double recycle,
                                       double lfoAmplitude, double lfoBaseSpeed,

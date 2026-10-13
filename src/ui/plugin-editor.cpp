@@ -5,6 +5,7 @@
 
 #include "plugin-editor.h"
 
+#include <clap/ext/state.h>
 #include <cmath>
 #include <cstring>
 
@@ -116,6 +117,17 @@ void PluginEditor::idle()
         {
             memset(patchCopy.name, 0, sizeof(patchCopy.name));
             strncpy(patchCopy.name, aum->patchNamePointer, 255);
+            if (mainPanel && mainPanel->face)
+                mainPanel->face->titleBar.repaint();
+        }
+        else if (aum->action == Engine::AudioToUIMsg::SET_FEEDBACK_MAX)
+        {
+            const float chosen = aum->value;
+            patchCopy.feedbackMax = chosen;
+            if (patchCopy.sabrina.recycle.value > chosen)
+                patchCopy.sabrina.recycle.value = chosen;
+            if (mainPanel && mainPanel->face)
+                mainPanel->face->repaint();
         }
         else if (aum->action == Engine::AudioToUIMsg::SET_PATCH_DIRTY_STATE)
         {
@@ -450,6 +462,11 @@ juce::String PluginEditor::jsonPresetFromPatch() const
     root->setProperty("type", kPresetType);
     root->setProperty("version", 1);
     root->setProperty("params", juce::var(params));
+    const auto title = displayTitle();
+    if (title != PRODUCT_NAME)
+        root->setProperty("alias", title);
+    if (std::fabs(patchCopy.feedbackMax - 0.98f) > 0.005f)
+        root->setProperty("recycleMax", patchCopy.feedbackMax);
     return juce::JSON::toString(juce::var(root), true);
 }
 
@@ -485,7 +502,77 @@ bool PluginEditor::applyJsonPreset(const juce::String &text)
     set(s.lfoStyle, "lfoStyle");
     set(s.seed, "seed");
     set(s.amplitude, "amplitude");
+    auto *root = parsed.getDynamicObject();
+    if (root && root->hasProperty("alias"))
+        setModuleTitle(root->getProperty("alias").toString());
+    if (root && root->hasProperty("recycleMax"))
+        setFeedbackMax((float)(double)root->getProperty("recycleMax"));
     return true;
+}
+
+juce::String PluginEditor::displayTitle() const
+{
+    const juce::String name{patchCopy.name};
+    if (name.isEmpty() || name == "Init")
+        return PRODUCT_NAME;
+    return name;
+}
+
+void PluginEditor::setModuleTitle(const juce::String &raw)
+{
+    auto trimmed = raw.trim();
+    const std::string store =
+        (trimmed.isEmpty() || trimmed == PRODUCT_NAME) ? std::string("Init") : trimmed.toStdString();
+    if (store == patchCopy.name)
+        return;
+
+    static char slots[8][256];
+    static int slot = 0;
+    char *buf = slots[slot];
+    slot = (slot + 1) % 8;
+    std::memset(buf, 0, sizeof(slots[0]));
+    std::strncpy(buf, store.c_str(), 255);
+
+    std::memset(patchCopy.name, 0, sizeof(patchCopy.name));
+    std::strncpy(patchCopy.name, buf, 255);
+    mainToAudio.push({Engine::MainToAudioMsg::SEND_PATCH_NAME, 0, 0.f, buf});
+    if (mainPanel && mainPanel->face)
+        mainPanel->face->titleBar.repaint();
+    if (clapHost)
+    {
+        if (auto *state = static_cast<const clap_host_state_t *>(
+                clapHost->get_extension(clapHost, CLAP_EXT_STATE)))
+            state->mark_dirty(clapHost);
+    }
+}
+
+void PluginEditor::setFeedbackMax(float maxValue)
+{
+    const float allowed[] = {0.98f, 1.f, 1.2f, 1.3f, 1.4f, 1.5f, 2.f};
+    float chosen = allowed[0];
+    float best = std::fabs(maxValue - chosen);
+    for (float step : allowed)
+    {
+        const float d = std::fabs(maxValue - step);
+        if (d < best)
+        {
+            best = d;
+            chosen = step;
+        }
+    }
+    patchCopy.feedbackMax = chosen;
+    if (patchCopy.sabrina.recycle.value > chosen)
+        setAndSendParamValue(patchCopy.sabrina.recycle.meta.id, chosen, true);
+    mainToAudio.push({Engine::MainToAudioMsg::SET_FEEDBACK_MAX, 0, chosen});
+    const auto recycleId = patchCopy.sabrina.recycle.meta.id;
+    if (auto it = componentByID.find(recycleId); it != componentByID.end() && it->second)
+        it->second->repaint();
+    if (clapHost)
+    {
+        if (auto *state = static_cast<const clap_host_state_t *>(
+                clapHost->get_extension(clapHost, CLAP_EXT_STATE)))
+            state->mark_dirty(clapHost);
+    }
 }
 
 void PluginEditor::copyJsonPreset()
@@ -573,6 +660,19 @@ void PluginEditor::showUiSizeMenu()
     menu.addItem("Paste settings", [safe]() { if (safe) safe->pasteJsonPreset(); });
     menu.addItem("Load settings...", [safe]() { if (safe) safe->loadJsonPreset(); });
     menu.addItem("Save settings...", [safe]() { if (safe) safe->saveJsonPreset(); });
+    menu.addSeparator();
+    menu.addSectionHeader("Recycle max");
+    for (float step : {0.98f, 1.f, 1.2f, 1.3f, 1.4f, 1.5f, 2.f})
+    {
+        juce::String label = juce::String(step, 2);
+        if (std::fabs(step - 0.98f) < 0.001f)
+            label << "  (default)";
+        const bool ticked = std::fabs(patchCopy.feedbackMax - step) < 0.005f;
+        menu.addItem(label, true, ticked, [safe, step]() {
+            if (safe)
+                safe->setFeedbackMax(step);
+        });
+    }
     menu.addSeparator();
     menu.addSectionHeader("UI Size");
     menu.addItem("Reset to 100%  (" + std::to_string((int)edWidth) + " x " +

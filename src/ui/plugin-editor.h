@@ -85,6 +85,9 @@ struct PluginEditor : jcmp::WindowPanel
     void showUiSizeMenu();
     bool isStandaloneHost() const;
     void openStandaloneAudioSettings();
+    juce::String displayTitle() const;
+    void setModuleTitle(const juce::String &raw);
+    void setFeedbackMax(float maxValue);
     void copyJsonPreset();
     void pasteJsonPreset();
     void saveJsonPreset();

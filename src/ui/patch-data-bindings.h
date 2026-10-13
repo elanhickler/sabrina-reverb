@@ -107,7 +107,12 @@ struct PatchContinuous : jdat::Continuous
     float getDefaultValue() const override { return p->meta.defaultVal; }
     bool isBipolar() const override { return p->meta.isBipolar(); }
     float getMin() const override { return p->meta.minVal; }
-    float getMax() const override { return p->meta.maxVal; }
+    float getMax() const override
+    {
+        if (p && p->meta.id == editor.patchCopy.sabrina.recycle.meta.id)
+            return editor.patchCopy.feedbackMax;
+        return p->meta.maxVal;
+    }
 
     jdat::Discrete *tsPowerPartner{nullptr};
     void setTemposyncPowerPartner(jdat::Discrete *d) { tsPowerPartner = d; }

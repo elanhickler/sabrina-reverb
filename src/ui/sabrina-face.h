@@ -82,11 +82,24 @@ struct SabrinaWaterfall : juce::Component
     void mouseUp(const juce::MouseEvent &e) override;
 };
 
-struct SabrinaTitleBar : juce::Component
+struct SabrinaTitleBar : juce::Component, juce::TextEditor::Listener
 {
     PluginEditor *editor{nullptr};
     void paint(juce::Graphics &g) override;
     void mouseUp(const juce::MouseEvent &e) override;
+    void mouseDoubleClick(const juce::MouseEvent &e) override;
+    void textEditorReturnKeyPressed(juce::TextEditor &) override;
+    void textEditorEscapeKeyPressed(juce::TextEditor &) override;
+    void textEditorFocusLost(juce::TextEditor &) override;
+    void textEditorTextChanged(juce::TextEditor &) override;
+
+  private:
+    std::unique_ptr<juce::TextEditor> typeIn;
+    bool committing{false};
+    void beginEdit();
+    void commitEdit();
+    void cancelEdit();
+    void fitEditFont();
 };
 
 struct SabrinaFace : juce::Component

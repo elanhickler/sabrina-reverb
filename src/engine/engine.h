@@ -62,6 +62,7 @@ struct Engine
         {
             UPDATE_PARAM,
             SET_PATCH_NAME,
+            SET_FEEDBACK_MAX,
             SET_PATCH_DIRTY_STATE,
             DO_PARAM_RESCAN,
             SEND_SAMPLE_RATE,
@@ -84,6 +85,7 @@ struct Engine
             STOP_AUDIO,
             START_AUDIO,
             SEND_PATCH_NAME,
+            SET_FEEDBACK_MAX,
             SEND_PATCH_IS_CLEAN,
             SEND_POST_LOAD,
             SEND_REQUEST_RESCAN,
@@ -133,6 +135,7 @@ struct Engine
     }
 
     std::atomic<bool> onMainRescanParams{false};
+    std::atomic<bool> onMainRescanInfo{false};
     void onMainThread();
 
     sst::cpputils::active_set_overlay<Param> paramLagSet;

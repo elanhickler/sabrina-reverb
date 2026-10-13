@@ -101,6 +101,7 @@ struct SabrinaState {
   double diffusionAmount;
   double delaySize;
   double recycle;
+  double feedbackMax{0.98};
   double lfoAmplitude;
   double lfoBaseSpeed;
   double lfoVariation;
@@ -678,7 +679,8 @@ extern "C" void soemdsp_sabrina_reverb_set_params(
 
   // LIVE — assign only (read in process / drywet).
   assignIf(state->mix, clamp(mix, 0.0, 1.0));
-  assignIf(state->recycle, clamp(recycle, 0.0, 0.98));
+  const double feedbackTop = state->feedbackMax > 0.98 ? state->feedbackMax : 0.98;
+  assignIf(state->recycle, clamp(recycle, 0.0, feedbackTop));
   assignIf(state->diffusionAmount, clamp(diffusionAmount, 0.0, 0.98));
 
   // CONTROL — targets for smoothed geometry (*Changed ownership).
@@ -815,14 +817,27 @@ extern "C" int soemdsp_sabrina_reverb_is_idle(int handle) {
   return state && state->isIdle ? 1 : 0;
 }
 
+extern "C" void soemdsp_sabrina_reverb_set_feedback_max(int handle, double maxValue) {
+  SabrinaState* state = stateForHandle(handle);
+  if (!state)
+    return;
+  state->feedbackMax = clamp(maxValue, 0.98, 2.0);
+  if (state->recycle > state->feedbackMax)
+    state->recycle = state->feedbackMax;
+}
+
 extern "C" int soemdsp_sabrina_reverb_version() {
-  return 8;
+  return 9;
 }
 
 void sabrinaFillDelay01(const SabrinaState &state, double times[kDelayCount]) {
-  // Display only: 14 equal lanes. LFO 0..1 swings around the lane center;
-  // Mod Amp (lfopercent = amp*0.1) scales travel. Amp 1 fills the lane.
-  const double invN = 1.0 / kDelayCount;
+  // Display X is delay length, left = short, right = the longest tap in this
+  // patch. Diffusion lines use seed (rndOffset) times Diffusion Size, so a new
+  // seed reshuffles them. The two non-diffusion lines share Delay Time and
+  // only separate while the LFO moves. The read head is
+  // offset * (1 + lfo * lfopercent), same as delaySample.
+  double lens[kDelayCount];
+  double axis = 1.0;
   for (int i = 0; i < kDelayCount; ++i) {
     const SabrinaDelay &d = state.delays[i];
     double lfo = sabrinaPeekModUni(d);
@@ -830,12 +845,18 @@ void sabrinaFillDelay01(const SabrinaState &state, double times[kDelayCount]) {
       lfo = 0.0;
     if (lfo > 1.0)
       lfo = 1.0;
-    double amp01 = d.lfopercent / 0.1;
-    if (amp01 < 0.0)
-      amp01 = 0.0;
-    if (amp01 > 1.0)
-      amp01 = 1.0;
-    times[i] = (static_cast<double>(i) + 0.5 + (lfo - 0.5) * amp01) * invN;
+    lens[i] = d.offset * (1.0 + lfo * d.lfopercent);
+    const double reach = d.offset * (1.0 + (d.lfopercent > 0.0 ? d.lfopercent : 0.0));
+    if (reach > axis)
+      axis = reach;
+  }
+  for (int i = 0; i < kDelayCount; ++i) {
+    double x = lens[i] / axis;
+    if (x < 0.0)
+      x = 0.0;
+    if (x > 1.0)
+      x = 1.0;
+    times[i] = x;
   }
 }
 
