@@ -11,12 +11,6 @@ KVR thread: https://www.kvraudio.com/forum/viewtopic.php?p=9309297
 
 Built from [`baconpaul/sidequest-startingpoint`](https://github.com/baconpaul/sidequest-startingpoint).
 
-```text
-dsp/sabrina_reverb.cpp             <- plugin compiles this
-dsp/include/soemdsp/               math headers the kernel needs
-reference/walter-original-vst/     Sabrina.cpp / Sabrina.h  (Walter's original VST)
-```
-
 ## Readable DSP
 
 Start here:
