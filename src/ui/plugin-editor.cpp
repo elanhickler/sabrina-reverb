@@ -91,6 +91,9 @@ PluginEditor::PluginEditor(Engine::audioToUIQueue_t &atou, Engine::mainToAudioQu
 }
 PluginEditor::~PluginEditor()
 {
+    // The title menu is a desktop window, so closing the plugin UI does not
+    // destroy it. Drop it here.
+    juce::PopupMenu::dismissAllActiveMenus();
     if (idleTimer)
         idleTimer->stopTimer();
     idleTimer.reset();
@@ -369,7 +372,11 @@ void PluginEditor::postPatchChange(const std::string &s)
 
 bool PluginEditor::keyPressed(const juce::KeyPress &key) { return false; }
 
-void PluginEditor::visibilityChanged() {}
+void PluginEditor::visibilityChanged()
+{
+    if (!isShowing())
+        juce::PopupMenu::dismissAllActiveMenus();
+}
 
 void PluginEditor::parentHierarchyChanged()
 {
@@ -551,7 +558,7 @@ void PluginEditor::pasteJsonPreset()
 
 void PluginEditor::saveJsonPreset()
 {
-    fileChooser = std::make_unique<juce::FileChooser>("Save module settings", juce::File(),
+    fileChooser = std::make_unique<juce::FileChooser>("Save preset", juce::File(),
                                                       "*.json");
     fileChooser->launchAsync(juce::FileBrowserComponent::saveMode |
                                  juce::FileBrowserComponent::canSelectFiles |
@@ -571,7 +578,7 @@ void PluginEditor::saveJsonPreset()
 
 void PluginEditor::loadJsonPreset()
 {
-    fileChooser = std::make_unique<juce::FileChooser>("Load module settings", juce::File(),
+    fileChooser = std::make_unique<juce::FileChooser>("Load preset", juce::File(),
                                                       "*.json");
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode |
                                  juce::FileBrowserComponent::canSelectFiles,
@@ -620,10 +627,10 @@ void PluginEditor::showUiSizeMenu()
         menu.addSeparator();
     }
     menu.addSectionHeader("Preset");
-    menu.addItem("Copy settings", [safe]() { if (safe) safe->copyJsonPreset(); });
-    menu.addItem("Paste settings", [safe]() { if (safe) safe->pasteJsonPreset(); });
-    menu.addItem("Load settings...", [safe]() { if (safe) safe->loadJsonPreset(); });
-    menu.addItem("Save settings...", [safe]() { if (safe) safe->saveJsonPreset(); });
+    menu.addItem("Copy preset", [safe]() { if (safe) safe->copyJsonPreset(); });
+    menu.addItem("Paste preset", [safe]() { if (safe) safe->pasteJsonPreset(); });
+    menu.addItem("Load preset...", [safe]() { if (safe) safe->loadJsonPreset(); });
+    menu.addItem("Save preset...", [safe]() { if (safe) safe->saveJsonPreset(); });
     menu.addSeparator();
     menu.addSectionHeader("UI Size");
     menu.addItem("Reset to 100%  (" + std::to_string((int)edWidth) + " x " +
@@ -663,6 +670,7 @@ void PluginEditor::showUiSizeMenu()
 #endif
     menu.addItem(juce::String(PRODUCT_VERSION) + " " + buildConfig, false, false, [] {});
     // Desktop popup — not parented to the editor, so UI size does not scale the menu.
+    // Closed in the destructor and when the editor stops showing.
     menu.showMenuAsync(juce::PopupMenu::Options());
 }
 

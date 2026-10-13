@@ -501,10 +501,17 @@ bool sabrinaSilenceDetectorRun(SabrinaState& state, double level) {
 }
 
 bool sabrinaIdleFromPorts(SabrinaState& state, double inL, double inR) {
-  return sabrinaSilenceDetectorRun(
-    state,
-    inL + inR + state.ch0 + state.ch1 + state.lastLeft + state.lastRight + state.lastWet
-  );
+  // Level, not a signed sum. Anti-phase channels cancel in a sum and the
+  // tail latches idle while both sides are still loud.
+  double level = 0.0;
+  const double terms[] = {
+    inL, inR, state.ch0, state.ch1, state.lastLeft, state.lastRight, state.lastWet
+  };
+  for (double term : terms) {
+    const double mag = __builtin_fabs(term);
+    if (mag > level) level = mag;
+  }
+  return sabrinaSilenceDetectorRun(state, level);
 }
 
 void advanceSabrinaSmoothing(SabrinaState& state) {
@@ -600,6 +607,26 @@ void sabrinaProcessBlockSimd(SabrinaState& state, const double* leftIn, const do
   }
 }
 
+// Clear the tail and update sample-rate coefficients. Parameters, seed, and
+// LFO phase stay. Delay memory is zeroed.
+void resetAudio(SabrinaState& state, double sampleRate) {
+  state.sampleRate = clamp(sampleRate, 1.0, 192000.0);
+  state.idleIncrement = 1.0 / state.sampleRate;
+  state.paramSmoothAlpha = 1.0 - expApprox(-1.0 / (kParamSmoothSeconds * state.sampleRate));
+  state.ch0 = 0.0;
+  state.ch1 = 0.0;
+  state.lastLeft = 0.0;
+  state.lastRight = 0.0;
+  state.lastWet = 0.0;
+  state.isIdle = true;
+  state.idleClock = 0.0;
+  for (int index = 0; index < kDelayCount; ++index) {
+    clearDelay(state.delays[index]);
+    state.delays[index].driver = 0;
+  }
+  applyDelayGeometry(state);
+}
+
 void resetState(SabrinaState& state, double sampleRate) {
   state.active = true;
   state.sampleRate = clamp(sampleRate, 1.0, 192000.0);
@@ -662,7 +689,7 @@ extern "C" void soemdsp_sabrina_reverb_reset(int handle, double sampleRate) {
   if (!state) {
     return;
   }
-  resetState(*state, sampleRate);
+  resetAudio(*state, sampleRate);
 }
 
 // Param ownership (soemdsp::delay::SabrinaReverb::kParams / DSP_ATOM_PARADIGM):

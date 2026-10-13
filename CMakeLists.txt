@@ -17,7 +17,7 @@ project(sabrina-reverb-clap VERSION 0.${PART0}.${PART1} LANGUAGES C CXX)
 set(PRODUCT_NAME "Sabrina Reverb")
 # User-facing version (right-click menu and CLAP descriptor). The project()
 # VERSION above changes every day so AU rescans; it is not this number.
-set(PRODUCT_VERSION "0.1.4")
+set(PRODUCT_VERSION "0.1.5")
 
 
 option(USE_SANITIZER "Build and link with ASAN" FALSE)
