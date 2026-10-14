@@ -53,6 +53,12 @@ function(add_product slug)
         )
     endif()
 
+    # Bit-identical DSP across compilers/arches: no FMA contraction (golden render).
+    # MSVC already defaults to /fp:precise without contraction.
+    if (NOT MSVC)
+        target_compile_options(${slug}-dsp PUBLIC -ffp-contract=off)
+    endif()
+
     # --- factory presets ---
     file(GLOB_RECURSE _patches "${_pdir}/presets/*${SE_PRODUCT_PATCH_EXT}" "${_pdir}/presets/*.sxsnp")
     cmrc_add_resource_library(${slug}-patches NAMESPACE se_presets ${_patches})
@@ -80,6 +86,9 @@ function(add_product slug)
         target_compile_definitions(${slug}-impl PUBLIC USE_WCHAR_PRESET=1 NOMINMAX)
     endif()
     target_link_libraries(${slug}-impl PUBLIC clap)
+    if (NOT MSVC)
+        target_compile_options(${slug}-impl PUBLIC -ffp-contract=off)
+    endif()
     target_link_libraries(${slug}-impl PRIVATE
             simde
             clap-helpers clap-wrapper-extensions

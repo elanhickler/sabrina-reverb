@@ -141,6 +141,19 @@ jobs:
           cmakeArgs: -DCMAKE_BUILD_TYPE=Release -GNinja -DCOPY_AFTER_BUILD=FALSE -DGITHUB_ACTIONS_BUILD=TRUE -DSE_PRODUCTS=${{ matrix.product.slug }}
           target: ${{ matrix.product.slug }}_all
 
+      - uses: surge-synthesizer/sst-githubactions/cmake-in-docker@main
+        with:
+          image: ghcr.io/surge-synthesizer/sst-dockerimages/ubuntu20_gcc11:main
+          username: ${{ github.actor }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cmakeArgs: -DCMAKE_BUILD_TYPE=Release -GNinja -DCOPY_AFTER_BUILD=FALSE -DGITHUB_ACTIONS_BUILD=TRUE -DSE_PRODUCTS=${{ matrix.product.slug }}
+          target: ${{ matrix.product.slug }}-tests
+
+      - name: Test (golden render, identity)
+        run: |
+          exe=$(find build -name "${SLUG}-tests" -type f -perm -u+x | head -1)
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" ghcr.io/surge-synthesizer/sst-dockerimages/ubuntu20_gcc11:main "$exe"
+
       - name: Package
         run: |
           mkdir -p build/inst
