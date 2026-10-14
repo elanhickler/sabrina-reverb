@@ -4,7 +4,7 @@
 # Identity, params and layout come from products/<slug>/product.json (see
 # cmake/product_json.cmake, which also checks params.lock and generates
 # product_generated.h). products/<slug>/product.cmake only lists sources:
-#   SE_PRODUCT_SOURCES       product C++ (face, adapter), relative to products/<slug>/
+#   SE_PRODUCT_SOURCES       product C++ (kernel adapter, face), relative to products/<slug>/
 #   SE_PRODUCT_DSP_SOURCES   kernel C++ (vendored sandbox native module), relative
 #   SE_PRODUCT_TESTS         product test sources, relative (optional)
 #
@@ -55,7 +55,7 @@ function(add_product slug)
 
     # --- factory presets ---
     file(GLOB_RECURSE _patches "${_pdir}/presets/*${SE_PRODUCT_PATCH_EXT}" "${_pdir}/presets/*.sxsnp")
-    cmrc_add_resource_library(${slug}-patches NAMESPACE ${SE_PRODUCT_PRESET_NS} ${_patches})
+    cmrc_add_resource_library(${slug}-patches NAMESPACE se_presets ${_patches})
 
     # --- shell + product glue ---
     set(_srcs ${SE_SHELL_SOURCES})

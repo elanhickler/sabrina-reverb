@@ -13,6 +13,7 @@
 #endif
 #include "ui/patch-data-bindings.h"
 #include "ui/plugin-editor.h"
+#include "product/product-face.h"
 
 namespace soundemote::sabrina::ui
 {
@@ -130,7 +131,7 @@ struct SabrinaTitleBar : juce::Component, juce::TextEditor::Listener
     void fitEditFont();
 };
 
-struct SabrinaFace : juce::Component
+struct SabrinaFace : se::product::Face
 {
     PluginEditor &editor;
     SabrinaFace(PluginEditor &e);
@@ -138,6 +139,8 @@ struct SabrinaFace : juce::Component
     void resized() override;
     void paint(juce::Graphics &g) override;
     void pushDelayTimes(const float times[14]);
+    void pushVizData(const float *values, size_t count) override;
+    void patchNameChanged() override;
 
     SabrinaTitleBar titleBar;
     SabrinaWaterfall waterfall;

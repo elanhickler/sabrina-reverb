@@ -43,7 +43,7 @@ PluginEditor::PluginEditor(Engine::audioToUIQueue_t &atou, Engine::mainToAudioQu
                            const clap_host_t *h)
     : jcmp::WindowPanel(true), audioToUI(atou), mainToAudio(utoa), clapHost(h)
 {
-    setTitle("Sabrina Reverb");
+    setTitle(PRODUCT_NAME);
     setAccessible(true);
     sst::jucegui::style::StyleSheet::initializeStyleSheets([]() {});
 
@@ -64,9 +64,9 @@ PluginEditor::PluginEditor(Engine::audioToUIQueue_t &atou, Engine::mainToAudioQu
     addChildComponent(*toolTip);
 
     auto userPath =
-        sst::plugininfra::paths::bestDocumentsVendorFolderPathFor("Soundemote", "SabrinaReverb");
+        sst::plugininfra::paths::bestDocumentsVendorFolderPathFor(se::product::vendor, se::product::vendorFolder);
     defaultsProvider = std::make_unique<defaultsProvder_t>(
-        userPath, "SabrinaReverb", defaultName,
+        userPath, se::product::vendorFolder, defaultName,
         [](auto e, auto b) { SQLOG("[ERROR]" << e << " " << b); });
     setSkinFromDefaults();
 
@@ -108,8 +108,9 @@ PluginEditor::~PluginEditor()
 
 void PluginEditor::idle()
 {
-    float delayTimes[14]{};
-    bool haveDelayMod = false;
+    float vizData[se::product::kMaxVizValues]{};
+    size_t vizCount = 0;
+    bool haveViz = false;
     auto aum = audioToUI.pop();
     while (aum.has_value())
     {
@@ -117,17 +118,18 @@ void PluginEditor::idle()
         {
             setAndSendParamValue(aum->paramId, aum->value, false);
         }
-        else if (aum->action == Engine::AudioToUIMsg::DELAY_MOD)
+        else if (aum->action == Engine::AudioToUIMsg::VIZ_DATA)
         {
-            std::memcpy(delayTimes, aum->delayTimes, sizeof(delayTimes));
-            haveDelayMod = true;
+            std::memcpy(vizData, aum->vizData, sizeof(vizData));
+            vizCount = aum->vizCount;
+            haveViz = true;
         }
         else if (aum->action == Engine::AudioToUIMsg::SET_PATCH_NAME)
         {
             memset(patchCopy.name, 0, sizeof(patchCopy.name));
             strncpy(patchCopy.name, aum->patchNamePointer, 255);
             if (mainPanel && mainPanel->face)
-                mainPanel->face->titleBar.repaint();
+                mainPanel->face->patchNameChanged();
         }
         else if (aum->action == Engine::AudioToUIMsg::SET_PATCH_DIRTY_STATE)
         {
@@ -156,8 +158,8 @@ void PluginEditor::idle()
         }
         aum = audioToUI.pop();
     }
-    if (haveDelayMod && mainPanel && isShowing())
-        mainPanel->pushDelayTimes(delayTimes);
+    if (haveViz && mainPanel && isShowing())
+        mainPanel->pushVizData(vizData, vizCount);
 }
 
 void PluginEditor::paint(juce::Graphics &g)
@@ -528,7 +530,7 @@ void PluginEditor::setModuleTitle(const juce::String &raw)
     std::strncpy(patchCopy.name, buf, 255);
     mainToAudio.push({Engine::MainToAudioMsg::SEND_PATCH_NAME, 0, 0.f, buf});
     if (mainPanel && mainPanel->face)
-        mainPanel->face->titleBar.repaint();
+        mainPanel->face->patchNameChanged();
     if (clapHost)
     {
         if (auto *state = static_cast<const clap_host_state_t *>(
@@ -651,9 +653,8 @@ void PluginEditor::showUiSizeMenu()
                      [safe, n]() { if (safe) safe->setScreenSize(n); });
     }
     menu.addSeparator();
-    menu.addItem("soundemote.com/sabrinareverb", [] {
-        juce::URL("https://soundemote.com/sabrinareverb").launchInDefaultBrowser();
-    });
+    menu.addItem(juce::String(se::product::url).fromFirstOccurrenceOf("://", false, false),
+                 [] { juce::URL(se::product::url).launchInDefaultBrowser(); });
 #if JUCE_DEBUG
     const char *buildConfig = "DEBUG";
 #else

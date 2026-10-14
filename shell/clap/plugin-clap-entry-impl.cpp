@@ -6,6 +6,7 @@
 #include "configuration.h"
 #include "sst/plugininfra/misc_platform.h"
 #include "sst/plugininfra/version_information.h"
+#include "product_generated.h"
 #include "clap/plugin-clap-entry-impl.h"
 #include "clap/plugin.h"
 #include "clapwrapper/vst3.h"
@@ -26,23 +27,17 @@ extern const clap_plugin *makePlugin(const clap_host *, bool);
  */
 const clap_plugin_descriptor *getDescriptor()
 {
-    static const char *features[] = {CLAP_PLUGIN_FEATURE_AUDIO_EFFECT,
-                                     CLAP_PLUGIN_FEATURE_STEREO,
-                                     CLAP_PLUGIN_FEATURE_REVERB,
-                                     "Free and Open Source",
-                                     nullptr};
-
     static clap_plugin_descriptor desc = {
         CLAP_VERSION,
-        "org.soundemote.sabrina-reverb",
+        se::product::clapId,
         PRODUCT_NAME,
-        "Soundemote",
+        se::product::vendor,
         "https://soundemote.com",
         "",
         "",
         PRODUCT_VERSION,
-        "Sabrina Reverb — stereo diffusion reverb from soemdsp.",
-        &features[0]};
+        se::product::description,
+        se::product::clapFeatures};
     return &desc;
 }
 
@@ -80,8 +75,8 @@ static bool clap_get_auv2_info(const clap_plugin_factory_as_auv2 *factory, uint3
 
     if (index == 0)
     {
-        strncpy(info->au_type, "aufx", 5); // audio effect
-        strncpy(info->au_subt, "SaRv", 5);
+        strncpy(info->au_type, se::product::auType, 5);
+        strncpy(info->au_subt, se::product::auSubtype, 5);
     }
 
     return true;
@@ -128,7 +123,7 @@ const void *get_factory(const char *factory_id)
 bool clap_init(const char *p)
 {
     // sst::plugininfra::misc_platform::allocateConsole();
-    SQLOG("Initializing Sabrina Reverb "
+    SQLOG("Initializing " << PRODUCT_NAME << " "
           << sst::plugininfra::VersionInformation::project_version_and_hash << " / "
           << sst::plugininfra::VersionInformation::git_implied_display_version);
     return true;

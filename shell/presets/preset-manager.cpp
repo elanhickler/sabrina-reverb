@@ -12,7 +12,8 @@
 
 #include <cmrc/cmrc.hpp>
 
-CMRC_DECLARE(sabrina_patches);
+#include "product_generated.h"
+CMRC_DECLARE(se_presets);
 
 namespace soundemote::sabrina::presets
 {
@@ -22,7 +23,7 @@ PresetManager::PresetManager(const clap_host_t *ch) : clapHost(ch)
     try
     {
         userPath =
-            sst::plugininfra::paths::bestDocumentsVendorFolderPathFor("Soundemote", "SabrinaReverb");
+            sst::plugininfra::paths::bestDocumentsVendorFolderPathFor(se::product::vendor, se::product::vendorFolder);
         if (clapHost)
             fs::create_directories(userPath);
         userPatchesPath = userPath / "Patches";
@@ -36,7 +37,7 @@ PresetManager::PresetManager(const clap_host_t *ch) : clapHost(ch)
 
     try
     {
-        auto fs = cmrc::sabrina_patches::get_filesystem();
+        auto fs = cmrc::se_presets::get_filesystem();
         for (const auto &d : fs.iterate_directory(factoryPath))
         {
             if (d.is_directory())
@@ -182,7 +183,7 @@ void PresetManager::loadFactoryPreset(Patch &patch, Engine::mainToAudioQueue_T &
 {
     try
     {
-        auto fs = cmrc::sabrina_patches::get_filesystem();
+        auto fs = cmrc::se_presets::get_filesystem();
         auto f = fs.open(std::string() + factoryPath + "/" + cat + "/" + pat);
         auto pb = std::string(f.begin(), f.end());
         patch.fromState(pb);

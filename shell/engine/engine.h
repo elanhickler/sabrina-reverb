@@ -20,7 +20,7 @@
 #include "configuration.h"
 #include "engine/patch.h"
 #include "sst/basic-blocks/dsp/LagCollection.h"
-#include "engine/sabrina-api.h"
+#include "product/product-api.h"
 #include "engine/soem-params.h"
 
 namespace soundemote::sabrina
@@ -31,9 +31,9 @@ struct Engine
 
     Patch patch;
 
-    int sabrinaHandle{0};
+    std::unique_ptr<se::product::Kernel> kernel;
     SoemParams soem;
-    void syncSabrinaParamsFromPatch();
+    void syncParamsToKernel();
 
     Engine();
     ~Engine();
@@ -65,12 +65,13 @@ struct Engine
             SET_PATCH_DIRTY_STATE,
             DO_PARAM_RESCAN,
             SEND_SAMPLE_RATE,
-            DELAY_MOD
+            VIZ_DATA
         } action;
         uint32_t paramId{0};
         float value{0}, value2{0};
         const char *patchNamePointer{0};
-        float delayTimes[14]{};
+        float vizData[se::product::kMaxVizValues]{};
+        uint32_t vizCount{0};
     };
     struct MainToAudioMsg
     {

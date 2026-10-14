@@ -13,36 +13,26 @@ int debugLevel{0};
 
 Engine::Engine()
 {
-    sabrinaHandle = soemdsp_sabrina_reverb_create(48000.0);
-    syncSabrinaParamsFromPatch();
+    kernel = se::product::makeKernel();
+    syncParamsToKernel();
 }
 
-Engine::~Engine()
-{
-    if (sabrinaHandle > 0)
-    {
-        soemdsp_sabrina_reverb_destroy(sabrinaHandle);
-        sabrinaHandle = 0;
-    }
-}
+Engine::~Engine() = default;
 
-void Engine::syncSabrinaParamsFromPatch()
+void Engine::syncParamsToKernel()
 {
-    if (sabrinaHandle <= 0)
+    if (!kernel)
         return;
 
     // Host/CLAP knobs carry real DSP numbers. soemdsp Parameter stores
     // the same mapped value and a linear copy for 0..1 modulation.
+    double dsp[se::product::numParams];
     for (size_t i = 0; i < se::product::numParams; ++i)
+    {
         soem[i].setMapped(patch.param(i).value);
-
-    namespace pi = se::product::param_index;
-    soemdsp_sabrina_reverb_set_params(
-        sabrinaHandle, soem[pi::mix].getDspDouble(), soem[pi::diffusionSize].getDspDouble(),
-        soem[pi::diffusionAmount].getDspDouble(), soem[pi::delaySize].getDspDouble(),
-        soem[pi::recycle].getDspDouble(), soem[pi::lfoAmplitude].getDspDouble(),
-        soem[pi::lfoBaseSpeed].getDspDouble(), soem[pi::lfoVariation].getDspDouble(),
-        soem[pi::seed].getDspDouble(), soem[pi::lfoStyle].getDspDouble());
+        dsp[i] = soem[i].getDspDouble();
+    }
+    kernel->setParams(dsp, se::product::numParams);
 }
 
 void Engine::setSampleRate(double sr)
@@ -56,11 +46,9 @@ void Engine::setSampleRate(double sr)
     }
     paramLagSet.removeAll();
 
-    if (sabrinaHandle > 0)
-        soemdsp_sabrina_reverb_reset(sabrinaHandle, sampleRate);
-    else
-        sabrinaHandle = soemdsp_sabrina_reverb_create(sampleRate);
-    syncSabrinaParamsFromPatch();
+    if (kernel)
+        kernel->prepare(sampleRate);
+    syncParamsToKernel();
 
     audioToUi.push({AudioToUIMsg::SEND_SAMPLE_RATE, 0, (float)sampleRate});
 }
@@ -72,7 +60,7 @@ void Engine::process(const clap_output_events_t *outq)
 
 bool Engine::isIdle() const
 {
-    return sabrinaHandle > 0 && soemdsp_sabrina_reverb_is_idle(sabrinaHandle) != 0;
+    return kernel && kernel->isIdle();
 }
 
 void Engine::process(const clap_output_events_t *outq, const float *const *inputChannels,
@@ -102,13 +90,12 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
 
     lagHandler.process();
 
-    syncSabrinaParamsFromPatch();
+    syncParamsToKernel();
 
     const bool hasInput = inputChannels != nullptr && inputChannelCount > 0 &&
                           inputChannels[0] != nullptr && inputFrameCount > 0;
-    const float amp = static_cast<float>(soem[se::product::param_index::amplitude].getDspDouble());
 
-    // Planck 1e-7 — same as sabrina_reverb.cpp / soemdsp SilenceDetector.
+    // Planck 1e-7, same as soemdsp SilenceDetector.
     constexpr double kPlanck = 1.0e-7;
     bool inputAwake = false;
     if (hasInput)
@@ -131,29 +118,31 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
     if (isIdle() && !inputAwake)
     {
         memset(output, 0, sizeof(output));
-        if (!isEditorAttached.load(std::memory_order_relaxed) || sabrinaHandle <= 0)
+        if (!isEditorAttached.load(std::memory_order_relaxed) || !kernel)
             return;
-        soemdsp_sabrina_reverb_advance_mod(sabrinaHandle, (int)blockSize);
+        kernel->advanceIdle((int)blockSize);
     }
     else
-    for (int i = 0; i < blockSize; ++i)
     {
-        const bool validFrame = hasInput && static_cast<uint32_t>(i) < inputFrameCount;
-        const double inL = validFrame ? inputChannels[0][i] : 0.0;
-        const double inR = validFrame && inputChannelCount > 1 && inputChannels[1] != nullptr
-                               ? inputChannels[1][i]
-                               : inL;
-
-        if (sabrinaHandle > 0)
+        float in[2][blockSize];
+        for (int i = 0; i < blockSize; ++i)
         {
-            soemdsp_sabrina_reverb_process(sabrinaHandle, inL, inR);
-            output[0][i] = static_cast<float>(soemdsp_sabrina_reverb_left(sabrinaHandle) * amp);
-            output[1][i] = static_cast<float>(soemdsp_sabrina_reverb_right(sabrinaHandle) * amp);
+            const bool validFrame = hasInput && static_cast<uint32_t>(i) < inputFrameCount;
+            in[0][i] = validFrame ? inputChannels[0][i] : 0.f;
+            in[1][i] = validFrame && inputChannelCount > 1 && inputChannels[1] != nullptr
+                           ? inputChannels[1][i]
+                           : in[0][i];
+        }
+        const float *ins[2] = {in[0], in[1]};
+        float *outs[2] = {output[0], output[1]};
+        if (kernel)
+        {
+            kernel->process(ins, outs, blockSize);
         }
         else
         {
-            output[0][i] = static_cast<float>(inL * amp);
-            output[1][i] = static_cast<float>(inR * amp);
+            memcpy(output[0], in[0], sizeof(in[0]));
+            memcpy(output[1], in[1], sizeof(in[1]));
         }
     }
 
@@ -161,9 +150,10 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
     {
         if (++lastScopeUpdate >= 100)
         {
-            AudioToUIMsg msg{AudioToUIMsg::DELAY_MOD};
-            if (sabrinaHandle > 0)
-                soemdsp_sabrina_reverb_delay_times(sabrinaHandle, msg.delayTimes);
+            AudioToUIMsg msg{AudioToUIMsg::VIZ_DATA};
+            if (kernel)
+                msg.vizCount =
+                    (uint32_t)kernel->vizData(msg.vizData, se::product::kMaxVizValues);
             audioToUi.push(msg);
             lastScopeUpdate = 0;
         }

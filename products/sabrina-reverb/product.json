@@ -8,9 +8,11 @@
   "patchVersion": 2,
   "patchExtension": ".sabrina",
   "vendorFolder": "SabrinaReverb",
-  "presetNamespace": "sabrina_patches",
   "sandboxModule": "reverbEffect",
+  "description": "Sabrina Reverb — stereo diffusion reverb from soemdsp.",
   "formats": ["CLAP", "VST3", "AUV2"],
+  "clapFeatures": ["audio-effect", "stereo", "reverb", "Free and Open Source"],
+  "au": { "type": "aufx", "subtype": "SaRv" },
   "params": [
     { "key": "mix",             "id": 500, "name": "Mix",              "group": "Main",      "type": "percent", "min": 0, "max": 1,        "default": 0.43,  "unit": "%" },
     { "key": "diffusionSize",   "id": 501, "name": "Diffusion Size",   "group": "Diffusion", "type": "unit",    "min": 0, "max": 1,        "default": 0.35 },

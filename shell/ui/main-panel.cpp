@@ -5,7 +5,7 @@ namespace soundemote::sabrina::ui
 
 MainPanel::MainPanel(PluginEditor &e) : editor(e)
 {
-    face = std::make_unique<SabrinaFace>(e);
+    face = se::product::makeFace(e);
     addAndMakeVisible(*face);
 }
 
@@ -15,10 +15,10 @@ void MainPanel::resized()
         face->setBounds(getLocalBounds());
 }
 
-void MainPanel::pushDelayTimes(const float times[14])
+void MainPanel::pushVizData(const float *values, size_t count)
 {
     if (face)
-        face->pushDelayTimes(times);
+        face->pushVizData(values, count);
 }
 
 } // namespace soundemote::sabrina::ui

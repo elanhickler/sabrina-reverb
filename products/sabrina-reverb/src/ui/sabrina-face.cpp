@@ -695,4 +695,17 @@ void SabrinaFace::resized()
     }
 }
 
+void SabrinaFace::pushVizData(const float *values, size_t count)
+{
+    if (count >= 14)
+        pushDelayTimes(values);
+}
+
+void SabrinaFace::patchNameChanged() { titleBar.repaint(); }
+
 } // namespace soundemote::sabrina::ui
+
+std::unique_ptr<se::product::Face> se::product::makeFace(soundemote::sabrina::ui::PluginEditor &e)
+{
+    return std::make_unique<soundemote::sabrina::ui::SabrinaFace>(e);
+}

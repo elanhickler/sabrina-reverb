@@ -4,7 +4,7 @@
 # and layout), checks it against products/<slug>/params.lock, and writes
 # ${CMAKE_BINARY_DIR}/generated/<slug>/product_generated.h.
 # Sets in the caller: SE_PRODUCT_NAME, SE_PRODUCT_VERSION, SE_PRODUCT_CLAP_ID,
-# SE_PRODUCT_PATCH_EXT, SE_PRODUCT_PRESET_NS, SE_PRODUCT_FORMATS,
+# SE_PRODUCT_PATCH_EXT, SE_PRODUCT_FORMATS,
 # SE_PRODUCT_GENERATED_DIR.
 
 function(_se_json_get out json)
@@ -28,7 +28,7 @@ function(se_load_product slug)
     file(READ "${_jf}" _j)
 
     foreach (_k slug name version clapId vendor url patchVersion patchExtension vendorFolder
-                presetNamespace sandboxModule)
+                sandboxModule description)
         _se_json_get(_v "${_j}" ${_k})
         if ("${_v}" STREQUAL "")
             message(FATAL_ERROR "products/${slug}/product.json: missing \"${_k}\"")
@@ -47,6 +47,22 @@ function(se_load_product slug)
         list(APPEND _formats "${_f}")
     endforeach()
     list(JOIN _formats " " _formats_s)
+
+    string(JSON _ncf LENGTH "${_j}" clapFeatures)
+    math(EXPR _last "${_ncf} - 1")
+    set(_cfeat "")
+    foreach (i RANGE ${_last})
+        string(JSON _f GET "${_j}" clapFeatures ${i})
+        _se_cstr(_fq "${_f}")
+        string(APPEND _cfeat "${_fq}, ")
+    endforeach()
+    _se_json_get(_au_type "${_j}" au type)
+    _se_json_get(_au_subt "${_j}" au subtype)
+    string(LENGTH "${_au_type}" _l1)
+    string(LENGTH "${_au_subt}" _l2)
+    if (NOT _l1 EQUAL 4 OR NOT _l2 EQUAL 4)
+        message(FATAL_ERROR "products/${slug}/product.json: au.type and au.subtype must be 4 characters")
+    endif()
 
     # --- params ---
     string(JSON _np LENGTH "${_j}" params)
@@ -152,7 +168,10 @@ function(se_load_product slug)
         string(APPEND _order "param_index::${_lk}, ")
     endforeach()
 
-    foreach (_k name version clapId vendor url patchExtension vendorFolder sandboxModule slug)
+    set(_p_au_type "${_au_type}")
+    set(_p_au_subt "${_au_subt}")
+    foreach (_k name version clapId vendor url patchExtension vendorFolder sandboxModule slug
+                description au_type au_subt)
         _se_cstr(_q_${_k} "${_p_${_k}}")
     endforeach()
 
@@ -167,7 +186,11 @@ function(se_load_product slug)
     string(APPEND _out "inline constexpr uint32_t patchVersion = ${_p_patchVersion};\n")
     string(APPEND _out "inline constexpr const char *patchExtension = ${_q_patchExtension};\n")
     string(APPEND _out "inline constexpr const char *vendorFolder = ${_q_vendorFolder};\n")
-    string(APPEND _out "inline constexpr const char *sandboxModule = ${_q_sandboxModule};\n\n")
+    string(APPEND _out "inline constexpr const char *sandboxModule = ${_q_sandboxModule};\n")
+    string(APPEND _out "inline constexpr const char *description = ${_q_description};\n")
+    string(APPEND _out "inline constexpr const char *auType = ${_q_au_type};\n")
+    string(APPEND _out "inline constexpr const char *auSubtype = ${_q_au_subt};\n")
+    string(APPEND _out "inline constexpr const char *clapFeatures[] = {${_cfeat}nullptr};\n\n")
     string(APPEND _out "${_choices}\n")
     string(APPEND _out "inline constexpr ParamDesc params[] = {\n${_rows}};\n")
     string(APPEND _out "inline constexpr size_t numParams = sizeof(params) / sizeof(params[0]);\n\n")
@@ -182,7 +205,6 @@ function(se_load_product slug)
     set(SE_PRODUCT_VERSION "${_p_version}" PARENT_SCOPE)
     set(SE_PRODUCT_CLAP_ID "${_p_clapId}" PARENT_SCOPE)
     set(SE_PRODUCT_PATCH_EXT "${_p_patchExtension}" PARENT_SCOPE)
-    set(SE_PRODUCT_PRESET_NS "${_p_presetNamespace}" PARENT_SCOPE)
     set(SE_PRODUCT_FORMATS "${_formats_s}" PARENT_SCOPE)
     set(SE_PRODUCT_GENERATED_DIR "${_gdir}" PARENT_SCOPE)
 endfunction()
