@@ -78,7 +78,7 @@ jobs:
           mkdir -p build/inst
           
           cp LICENSE.md build/${TARGET_NAME}_assets
-          cp resources/ReadmeZip.txt build/${TARGET_NAME}_assets
+          cp shell/resources/ReadmeZip.txt build/${TARGET_NAME}_assets
           pushd build/${TARGET_NAME}_assets
           ls -al
 
@@ -89,7 +89,7 @@ jobs:
         run: |
           mkdir -p build/inst
           cp LICENSE.md build/${TARGET_NAME}_assets
-          cp resources/ReadmeZip.txt build/${TARGET_NAME}_assets
+          cp shell/resources/ReadmeZip.txt build/${TARGET_NAME}_assets
           pushd build/${TARGET_NAME}_assets
           zip -r ../inst/Sabrina-Reverb-macos.zip .
 
@@ -127,7 +127,7 @@ jobs:
 
           mkdir -p build/inst
           cp LICENSE.md build/${TARGET_NAME}_assets
-          cp resources/ReadmeZip.txt build/${TARGET_NAME}_assets
+          cp shell/resources/ReadmeZip.txt build/${TARGET_NAME}_assets
           pushd build/${TARGET_NAME}_assets
           ls -al
 

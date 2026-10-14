@@ -22,7 +22,7 @@ Start here:
 | [`reference/README.md`](reference/README.md) | How these relate to the shipping DSP |
 
 The plugin **does not compile** those reference files. The live kernel is
-[`dsp/sabrina_reverb.cpp`](dsp/sabrina_reverb.cpp).
+[`products/sabrina-reverb/dsp/sabrina_reverb.cpp`](products/sabrina-reverb/dsp/sabrina_reverb.cpp).
 
 ## Layout on disk
 
@@ -60,7 +60,7 @@ Artifacts land under `build/sabrina-reverb-clap_assets/`.
 
 ## Status
 
-Stereo effect plugin. DSP is `dsp/sabrina_reverb.cpp` (Parabol / FBM).
+Stereo effect plugin. DSP is `products/sabrina-reverb/dsp/sabrina_reverb.cpp` (Parabol / FBM).
 UI is the sandbox-style module face (title, waterfall, full-width sliders),
 not the SideQuest knob grid. Synth `Voice` files are still in the tree and
 unused on the audio path.

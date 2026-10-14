@@ -7,7 +7,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "plugin-editor.h"
-#include "sabrina-face.h"
+#include "ui/sabrina-face.h"
 
 namespace soundemote::sabrina::ui
 {

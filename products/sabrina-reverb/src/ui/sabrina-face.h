@@ -11,8 +11,8 @@
 #ifdef small
 #undef small
 #endif
-#include "patch-data-bindings.h"
-#include "plugin-editor.h"
+#include "ui/patch-data-bindings.h"
+#include "ui/plugin-editor.h"
 
 namespace soundemote::sabrina::ui
 {

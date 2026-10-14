@@ -1,9 +1,9 @@
-# Vendored Sabrina kernel (dsp/sabrina_reverb.cpp + dsp/include/soemdsp).
+# Vendored Sabrina kernel (products/sabrina-reverb/dsp/sabrina_reverb.cpp + dsp-common/include/soemdsp).
 # No soemdsp-sandbox checkout required.
 
-set(SABRINA_SRC "${CMAKE_SOURCE_DIR}/dsp/sabrina_reverb.cpp")
+set(SABRINA_SRC "${CMAKE_SOURCE_DIR}/products/sabrina-reverb/dsp/sabrina_reverb.cpp")
 if (NOT EXISTS "${SABRINA_SRC}")
-    message(FATAL_ERROR "dsp/sabrina_reverb.cpp missing")
+    message(FATAL_ERROR "products/sabrina-reverb/dsp/sabrina_reverb.cpp missing")
 endif()
 
 add_library(soemdsp-sabrina STATIC "${SABRINA_SRC}")
@@ -46,7 +46,7 @@ target_link_libraries(soemdsp-plugin-support PUBLIC
 target_include_directories(soemdsp-sabrina PUBLIC
     "${CMAKE_SOURCE_DIR}/runtime"
     "${CMAKE_SOURCE_DIR}/runtime/wasm_simd128_shim"
-    "${CMAKE_SOURCE_DIR}/dsp/include"
+    "${CMAKE_SOURCE_DIR}/dsp-common/include"
 )
 
 target_compile_definitions(soemdsp-sabrina PUBLIC NOMINMAX)

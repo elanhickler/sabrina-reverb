@@ -46,7 +46,7 @@ message(STATUS "DISPLAY_VERSION=${GIT_IMPLIED_DISPLAY_VERSION}; COMMIT_HASH=${GI
 
 
 include(cmake/CmakeRC.cmake)
-file(GLOB_RECURSE PATCHES  "resources/factory_patches/*.sxsnp")
+file(GLOB_RECURSE PATCHES  "products/sabrina-reverb/presets/*.sxsnp")
 cmrc_add_resource_library(${PROJECT_NAME}-patches NAMESPACE sabrina_patches ${PATCHES})
 
 set(JUCE_PATH "${CMAKE_SOURCE_DIR}/libs/JUCE")
@@ -56,21 +56,22 @@ add_subdirectory(libs)
 include(cmake/soemdsp.cmake)
 
 add_library(${PROJECT_NAME}-impl STATIC
-        src/clap/plugin-clap.cpp
-        src/clap/plugin-clap-entry-impl.cpp
+        shell/clap/plugin-clap.cpp
+        shell/clap/plugin-clap-entry-impl.cpp
 
-        src/ui/plugin-editor.cpp
-        src/ui/main-panel.cpp
-        src/ui/sabrina-face.cpp
+        shell/ui/plugin-editor.cpp
+        shell/ui/main-panel.cpp
+        products/sabrina-reverb/src/ui/sabrina-face.cpp
 
-        src/presets/preset-manager.cpp
+        shell/presets/preset-manager.cpp
 
-        src/engine/engine.cpp
-        src/engine/patch.cpp
+        shell/engine/engine.cpp
+        shell/engine/patch.cpp
 
 )
 target_include_directories(${PROJECT_NAME}-impl PUBLIC
-        src
+        shell
+        products/sabrina-reverb/src
         "${SOEMDSP_ROOT}/include"
 )
 # soemdsp plugin Parameter headers need C++20 (std::source_location).
@@ -125,7 +126,7 @@ make_clapfirst_plugins(
 
         OUTPUT_NAME "${PRODUCT_NAME}"
 
-        ENTRY_SOURCE src/clap/plugin-clap-entry.cpp
+        ENTRY_SOURCE shell/clap/plugin-clap-entry.cpp
 
         BUNDLE_IDENTIFER "org.soundemote.sabrina-reverb"
         BUNDLE_VERSION ${PROJECT_VERSION}
@@ -142,7 +143,7 @@ make_clapfirst_plugins(
         STANDALONE_CONFIGURATIONS
             standalone "${PRODUCT_NAME}" "org.soundemote.sabrina-reverb"
 
-        # STANDALONE_MACOS_ICON "${CMAKE_SOURCE_DIR}/resources/mac_installer/Icon.icns"
+        # STANDALONE_MACOS_ICON "${CMAKE_SOURCE_DIR}/products/sabrina-reverb/assets/Icon.icns"
 )
 
 add_subdirectory(tests)
