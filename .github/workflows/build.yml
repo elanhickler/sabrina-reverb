@@ -1,0 +1,177 @@
+# Builds every product in products/ on every OS, and releases one product
+# per tag. Tag format: <slug>-v<version>, e.g. sabrina-reverb-v0.2.0; the
+# version must equal products/<slug>/product.json "version".
+# Artifact names: <Product-Name>-windows.zip / -macos.zip / -linux.tgz
+# (spaces in the product name become dashes), matching soundemote.com.
+name: Build Plugins
+on:
+  push:
+    branches:
+      - main
+      - rel_*
+      - test/*
+    tags:
+      - '*-v*'
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  products:
+    name: Select products
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      release: ${{ steps.pick.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        run: |
+          set -euo pipefail
+          ref="${GITHUB_REF_NAME}"
+          rows='[]'
+          release=false
+          for f in products/*/product.json; do
+            slug=$(jq -r .slug "$f")
+            name=$(jq -r .name "$f")
+            ver=$(jq -r .version "$f")
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              [[ "$ref" == "${slug}-v"* ]] || continue
+              if [[ "$ref" != "${slug}-v${ver}" ]]; then
+                echo "::error::tag $ref does not match $f version $ver"; exit 1
+              fi
+              release=true
+            fi
+            archive="${name// /-}"
+            rows=$(jq -c --arg s "$slug" --arg n "$name" --arg a "$archive" \
+              '. + [{slug:$s, name:$n, archive:$a}]' <<<"$rows")
+          done
+          if [[ "$rows" == "[]" ]]; then echo "::error::no product matches $ref"; exit 1; fi
+          echo "matrix=$rows" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.product.slug }} - ${{ matrix.os.name }}
+    needs: products
+    runs-on: ${{ matrix.os.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        product: ${{ fromJSON(needs.products.outputs.matrix) }}
+        os:
+          - { runner: windows-latest, name: windows, cmake_args: "-Ax64" }
+          - { runner: macos-latest, name: macos, cmake_args: '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -GNinja' }
+    env:
+      SLUG: ${{ matrix.product.slug }}
+      ARCHIVE: ${{ matrix.product.archive }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: surge-synthesizer/sst-githubactions/prepare-for-juce@main
+        with:
+          os: ${{ runner.os }}
+
+      # once signing is set up (shared by all products)
+      #- uses: apple-actions/import-codesign-certs@v3
+      #  if: runner.os == 'macOS' && github.event_name != 'pull_request'
+      #  with:
+      #    p12-file-base64: ${{ secrets.MAC_CERTS_P12 }}
+      #    p12-password: ${{ secrets.CERT_PWD }}
+
+      - name: Configure
+        run: |
+          cfg=Release; [[ "${{ github.event_name }}" == "pull_request" ]] && cfg=Debug
+          echo "CFG=$cfg" >> "$GITHUB_ENV"
+          cmake -S . -B ./build ${{ matrix.os.cmake_args }} -DCMAKE_BUILD_TYPE=$cfg \
+            -DCOPY_AFTER_BUILD=FALSE -DGITHUB_ACTIONS_BUILD=TRUE -DSE_PRODUCTS=$SLUG
+
+      - name: Build
+        run: cmake --build ./build --config $CFG --target ${SLUG}_all ${SLUG}-tests --parallel 3
+
+      - name: Test (golden render, identity)
+        run: |
+          exe=$(find build -name "${SLUG}-tests*" -type f \( -name '*.exe' -o -perm -u+x \) | head -1)
+          "$exe"
+
+      - name: Package
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p build/inst
+          cp LICENSE.md build/${SLUG}_assets
+          readme=products/$SLUG/ReadmeZip.txt; [[ -f $readme ]] || readme=shell/resources/ReadmeZip.txt
+          cp "$readme" build/${SLUG}_assets/ReadmeZip.txt
+          pushd build/${SLUG}_assets
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            7z a -r ../inst/${ARCHIVE}-windows.zip *
+          else
+            zip -r ../inst/${ARCHIVE}-macos.zip .
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          path: build/inst
+          name: ${{ matrix.product.slug }}-${{ matrix.os.name }}
+
+  build_linux:
+    name: ${{ matrix.product.slug }} - linux (docker)
+    needs: products
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        product: ${{ fromJSON(needs.products.outputs.matrix) }}
+    env:
+      SLUG: ${{ matrix.product.slug }}
+      ARCHIVE: ${{ matrix.product.archive }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: surge-synthesizer/sst-githubactions/cmake-in-docker@main
+        with:
+          image: ghcr.io/surge-synthesizer/sst-dockerimages/ubuntu20_gcc11:main
+          username: ${{ github.actor }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cmakeArgs: -DCMAKE_BUILD_TYPE=Release -GNinja -DCOPY_AFTER_BUILD=FALSE -DGITHUB_ACTIONS_BUILD=TRUE -DSE_PRODUCTS=${{ matrix.product.slug }}
+          target: ${{ matrix.product.slug }}_all
+
+      - name: Package
+        run: |
+          mkdir -p build/inst
+          cp LICENSE.md build/${SLUG}_assets
+          readme=products/$SLUG/ReadmeZip.txt; [[ -f $readme ]] || readme=shell/resources/ReadmeZip.txt
+          cp "$readme" build/${SLUG}_assets/ReadmeZip.txt
+          pushd build/${SLUG}_assets
+          tar cvzf ../inst/${ARCHIVE}-linux.tgz .
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          path: build/inst
+          name: ${{ matrix.product.slug }}-linux
+
+  release:
+    name: Publish release
+    if: needs.products.outputs.release == 'true' && github.repository_owner == 'elanhickler'
+    needs: [products, build, build_linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -l dist
+          gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" --notes "Built from ${GITHUB_SHA}."
