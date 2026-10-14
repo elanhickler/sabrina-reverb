@@ -1,5 +1,5 @@
 # Builds every product in products/ on every OS, and releases one product
-# per tag. Tag format: <slug>-v<version>, e.g. sabrina-reverb-v0.2.0; the
+# per tag. Tag format: <slug>-v<version>, e.g. sabrina-reverb-v0.1.7; the
 # version must equal products/<slug>/product.json "version".
 # Artifact names: <Product-Name>-windows.zip / -macos.zip / -linux.tgz
 # (spaces in the product name become dashes), matching soundemote.com.
