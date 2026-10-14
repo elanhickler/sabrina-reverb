@@ -40,7 +40,8 @@ struct SabrinaKernel : se::product::Kernel
         soemdsp_sabrina_reverb_set_params(handle, v[pi::mix], v[pi::diffusionSize],
                                           v[pi::diffusionAmount], v[pi::delaySize], v[pi::recycle],
                                           v[pi::lfoAmplitude], v[pi::lfoBaseSpeed],
-                                          v[pi::lfoVariation], v[pi::seed], v[pi::lfoStyle]);
+                                          v[pi::lfoVariation], v[pi::seed], v[pi::lfoStyle],
+                                          v[pi::delayTapMod]);
     }
 
     void process(const float *const *in, float *const *out, uint32_t frames) override

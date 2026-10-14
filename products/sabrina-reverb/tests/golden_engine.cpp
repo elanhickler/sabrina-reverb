@@ -37,7 +37,7 @@ struct Fnv
     }
 };
 
-template <typename E> uint64_t renderGolden(E &engine, float &peak)
+template <typename E> uint64_t renderGolden(E &engine, float &peak, int delayTapMod = -1)
 {
     constexpr double sr = 48000.0;
     constexpr int seconds = 4;
@@ -63,6 +63,8 @@ template <typename E> uint64_t renderGolden(E &engine, float &peak)
     set(508, 1.0f);   // style FBM
     set(509, 1234.f); // seed
     set(510, 0.9f);   // amplitude
+    if (delayTapMod >= 0) // 511 Tap Mod; the golden leaves it at its default (On)
+        set(511, (float)delayTapMod);
 
     uint32_t rng = 0x12345678u;
     Fnv fnv;
@@ -106,9 +108,9 @@ bool seIdentityOk(std::string &why)
     if (std::string(se::product::patchExtension) != ".sabrina")
         return why = "preset extension changed", false;
     Patch p;
-    if (p.params.size() != 11)
+    if (p.params.size() != 12)
         return why = "param count changed", false;
-    for (uint32_t id = 500; id <= 510; ++id)
+    for (uint32_t id = 500; id <= 511; ++id)
         if (p.paramMap.find(id) == p.paramMap.end())
             return why = "missing param id " + std::to_string(id), false;
     return true;
@@ -119,5 +121,30 @@ uint64_t seGoldenRenderHash(float &peak)
     peak = 0.f;
     auto engine = std::make_unique<soundemote::sabrina::Engine>();
     return renderGolden(*engine, peak);
+}
+
+uint64_t seGoldenRenderHashTapMod(float &peak, int delayTapMod)
+{
+    peak = 0.f;
+    auto engine = std::make_unique<soundemote::sabrina::Engine>();
+    return renderGolden(*engine, peak, delayTapMod);
+}
+
+// A v0.1.x preset has no 511: loading it must give Tap Mod On.
+float seOldPresetTapMod()
+{
+    soundemote::sabrina::Patch p;
+    p.paramMap.at(511)->value = 0.f;
+    const std::string old = std::string("<patch id=\"") + soundemote::sabrina::Patch::id +
+                            "\" version=\"2\" name=\"old\"><params><p id=\"500\" v=\"0.5\"/></params></patch>";
+    if (!p.fromState(old))
+        return -1.f;
+    return p.paramMap.at(511)->value;
+}
+
+float seDefaultValue(uint32_t id)
+{
+    soundemote::sabrina::Patch p;
+    return p.paramMap.at(id)->value;
 }
 

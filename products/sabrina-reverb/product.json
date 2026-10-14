@@ -23,11 +23,12 @@
     { "key": "lfoBaseSpeed",    "id": 506, "name": "Mod(~)Speed",      "group": "Mod",       "type": "unit",    "min": 0, "max": 1,        "default": 0.83 },
     { "key": "lfoVariation",    "id": 507, "name": "Mod(~)Vary",       "group": "Mod",       "type": "unit",    "min": 0, "max": 1,        "default": 0.001 },
     { "key": "lfoStyle",        "id": 508, "name": "Mod(~)Style",      "group": "Mod",       "type": "choice",  "min": 0, "max": 1,        "default": 0, "choices": ["Parabol", "FBM"] },
+    { "key": "delayTapMod",     "id": 511, "name": "Tap Mod",          "group": "Mod",       "type": "choice",  "min": 0, "max": 1,        "default": 1, "choices": ["Off", "On"] },
     { "key": "seed",            "id": 509, "name": "Seed",             "group": "Mod",       "type": "int",     "min": 0, "max": 16777215, "default": 0 },
     { "key": "amplitude",       "id": 510, "name": "Amplitude",        "group": "Main",      "type": "unit",    "min": 0, "max": 1,        "default": 1.0 }
   ],
   "layout": {
     "order": ["mix", "diffusionSize", "diffusionAmount", "delaySize", "recycle",
-              "lfoAmplitude", "lfoBaseSpeed", "lfoVariation", "lfoStyle", "seed", "amplitude"]
+              "lfoAmplitude", "lfoBaseSpeed", "lfoVariation", "lfoStyle", "delayTapMod", "seed", "amplitude"]
   }
 }

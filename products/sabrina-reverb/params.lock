@@ -13,3 +13,4 @@
 508 lfoStyle choice
 509 seed int
 510 amplitude unit
+511 delayTapMod choice

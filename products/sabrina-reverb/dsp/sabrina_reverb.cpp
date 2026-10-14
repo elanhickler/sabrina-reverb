@@ -105,6 +105,7 @@ struct SabrinaState {
   double lfoBaseSpeed;
   double lfoVariation;
   int lfoStyle; // 0 Parabol (original), 1 FBM
+  int delayTapMod; // 1 = main (non-diffuse) delay taps modulated (Walter original), 0 = held at fixed length
   int seed;
   // Ramped copies of the params that feed delay-line offsets/LFO speed --
   // advanced one step per sample in advanceSabrinaSmoothing so the geometry
@@ -426,7 +427,7 @@ void applyDelayGeometry(SabrinaState& state) {
   for (int index = kDiffusionCount; index < kDelayCount; index += 1) {
     SabrinaDelay& delay = state.delays[index];
     delay.offset = (maxDelaySize - 2.0) * state.smoothedDelaySize * 0.1 + 1.0;
-    delay.lfopercent = state.smoothedLfoAmplitude * kLfoDepthScale;
+    delay.lfopercent = state.delayTapMod ? state.smoothedLfoAmplitude * kLfoDepthScale : 0.0;
     initializeMod(delay, lfoSpeed, lfoVariation, state.sampleRate);
   }
 }
@@ -631,6 +632,7 @@ void resetState(SabrinaState& state, double sampleRate) {
   state.lfoBaseSpeed = 0.83;
   state.lfoVariation = 0.001;
   state.lfoStyle = 0;
+  state.delayTapMod = 1;
   state.smoothedDiffusionSize = state.diffusionSize;
   state.smoothedDelaySize = state.delaySize;
   state.smoothedLfoAmplitude = state.lfoAmplitude;
@@ -691,7 +693,8 @@ extern "C" void soemdsp_sabrina_reverb_set_params(
   double lfoBaseSpeed,
   double lfoVariation,
   double seed,
-  double lfoStyle
+  double lfoStyle,
+  double delayTapMod
 ) {
   SabrinaState* state = stateForHandle(handle);
   if (!state) {
@@ -720,6 +723,16 @@ extern "C" void soemdsp_sabrina_reverb_set_params(
   const int nextStyle = lfoStyle >= 0.5 ? 1 : 0;
   if (nextStyle != state->lfoStyle) {
     state->lfoStyle = nextStyle;
+  }
+  // Tap Mod: Off zeroes the LFO depth on just the 2 main taps (applied in
+  // applyDelayGeometry); the LFO keeps running and diffusion keeps modulating.
+  const int nextTapMod = delayTapMod >= 0.5 ? 1 : 0;
+  if (nextTapMod != state->delayTapMod) {
+    state->delayTapMod = nextTapMod;
+    // Geometry is skipped once smoothing settles, so stamp the 2 main taps now.
+    for (int index = kDiffusionCount; index < kDelayCount; index += 1) {
+      state->delays[index].lfopercent = nextTapMod ? state->smoothedLfoAmplitude * kLfoDepthScale : 0.0;
+    }
   }
 
   const int seedInt = static_cast<int>(seed + 0.5);

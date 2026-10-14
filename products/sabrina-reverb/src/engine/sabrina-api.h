@@ -14,7 +14,8 @@ void soemdsp_sabrina_reverb_reset(int handle, double sampleRate);
 void soemdsp_sabrina_reverb_set_params(int handle, double mix, double diffusionSize,
                                       double diffusionAmount, double delaySize, double recycle,
                                       double lfoAmplitude, double lfoBaseSpeed,
-                                      double lfoVariation, double seed, double lfoStyle);
+                                      double lfoVariation, double seed, double lfoStyle,
+                                      double delayTapMod);
 void soemdsp_sabrina_reverb_process(int handle, double leftInput, double rightInput);
 double soemdsp_sabrina_reverb_left(int handle);
 double soemdsp_sabrina_reverb_right(int handle);
