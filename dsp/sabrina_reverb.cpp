@@ -243,12 +243,10 @@ v128_t parabolPairSimd(v128_t value) {
   return wasm_f64x2_mul(wasm_f64x2_splat(4.0), wasm_f64x2_mul(fit, wasm_f64x2_sub(wasm_f64x2_splat(1.0), absFit)));
 }
 
-// SIMD kernels below process the left and right channels together, one lane
-// each, instead of two full sequential calls. The two channels never depend
-// on each other within a single call (the "cross-feed" is only via ch0/ch1
-// persisted from the *previous* process() call), so this is a legitimate,
-// data-independent pairing -- the classic stereo-channel-parallel SIMD
-// pattern, not a reordering of any real dependency.
+// Paired L/R kernels, one lane per channel. NOT used by the process paths:
+// in Walter's original the right chain's cross-feed reads the left chain's
+// output from the same sample (Sabrina.cpp:1033-1034), so the channels are
+// not independent within a sample. See sabrinaRunChains.
 //
 // The buffer read/write itself stays scalar: delayL.buffer and delayR.buffer
 // are two separate arrays at unrelated addresses with independently-computed
@@ -522,6 +520,23 @@ void advanceSabrinaSmoothing(SabrinaState& state) {
   applyLiveDiffusionAmount(state);
 }
 
+// One sample through both chains in Walter's order (Sabrina.cpp:1033-1034):
+// the left chain runs first, then the right chain's cross-feed delay reads
+// the NEW ch0 from this same sample. The channels are not independent within
+// a sample, so they cannot be paired into one SIMD pass.
+void sabrinaRunChains(SabrinaState& state, double dryLeft, double dryRight) {
+  double left = dryLeft + delaySample(state.delays[12], state.ch1) * state.recycle;
+  for (int index = 0; index < 6; index += 1) {
+    left = diffuseSample(state.delays[index * 2], left);
+  }
+  state.ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
+  double right = dryRight + delaySample(state.delays[13], state.ch0) * state.recycle;
+  for (int index = 0; index < 6; index += 1) {
+    right = diffuseSample(state.delays[index * 2 + 1], right);
+  }
+  state.ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+}
+
 // Block-processing boundary: params/state are read once per sample inside
 // the loop exactly as soemdsp_sabrina_reverb_process does, but frameCount
 // samples are produced in one call instead of one JS<->WASM crossing per
@@ -542,20 +557,7 @@ void sabrinaProcessBlockScalar(SabrinaState& state, const double* leftIn, const 
       continue;
     }
     advanceSabrinaSmoothing(state);
-    const double effectLeft = dryLeft;
-    const double effectRight = dryRight;
-    const double preLeft = delaySample(state.delays[12], state.ch1);
-    const double preRight = delaySample(state.delays[13], state.ch0);
-    double left = effectLeft + preLeft * state.recycle;
-    double right = effectRight + preRight * state.recycle;
-    for (int index = 0; index < 6; index += 1) {
-      const double outLeft = diffuseSample(state.delays[index * 2], left);
-      const double outRight = diffuseSample(state.delays[index * 2 + 1], right);
-      left = outLeft;
-      right = outRight;
-    }
-    state.ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
-    state.ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+    sabrinaRunChains(state, dryLeft, dryRight);
     const double mixLeft = state.ch0 * state.mix + dryLeft * (1.0 - state.mix);
     const double mixRight = state.ch1 * state.mix + dryRight * (1.0 - state.mix);
     state.lastLeft = mixLeft;
@@ -566,9 +568,8 @@ void sabrinaProcessBlockScalar(SabrinaState& state, const double* leftIn, const 
   }
 }
 
-// SIMD path -- identical structure, calls the already-committed paired
-// kernels (one f64x2 lane per stereo channel) that soemdsp_sabrina_reverb_process
-// already uses live, per sample.
+// SIMD-selected path. Same as scalar: the chains run in Walter's order via
+// sabrinaRunChains (the right cross-feed needs this sample's ch0).
 void sabrinaProcessBlockSimd(SabrinaState& state, const double* leftIn, const double* rightIn, double* leftOut, double* rightOut, int frameCount) {
   for (int frame = 0; frame < frameCount; frame += 1) {
     const double dryLeft = is_finite(leftIn[frame]) ? leftIn[frame] : 0.0;
@@ -579,20 +580,7 @@ void sabrinaProcessBlockSimd(SabrinaState& state, const double* leftIn, const do
       continue;
     }
     advanceSabrinaSmoothing(state);
-    const double effectLeft = dryLeft;
-    const double effectRight = dryRight;
-    double preLeft, preRight;
-    delaySamplePairSimd(state.delays[12], state.delays[13], state.ch1, state.ch0, preLeft, preRight);
-    double left = effectLeft + preLeft * state.recycle;
-    double right = effectRight + preRight * state.recycle;
-    for (int index = 0; index < 6; index += 1) {
-      double outLeft, outRight;
-      diffuseSamplePairSimd(state.delays[index * 2], state.delays[index * 2 + 1], left, right, outLeft, outRight);
-      left = outLeft;
-      right = outRight;
-    }
-    state.ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
-    state.ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+    sabrinaRunChains(state, dryLeft, dryRight);
     const double mixLeft = state.ch0 * state.mix + dryLeft * (1.0 - state.mix);
     const double mixRight = state.ch1 * state.mix + dryRight * (1.0 - state.mix);
     state.lastLeft = mixLeft;
@@ -752,24 +740,7 @@ extern "C" void soemdsp_sabrina_reverb_process(int handle, double leftInput, dou
     return;
   }
   advanceSabrinaSmoothing(*state);
-  // Left and right channels are independent within this call (cross-feed
-  // only happens via ch0/ch1 persisted from the *previous* call), so both
-  // chains are processed together, one SIMD lane per channel, instead of
-  // two full sequential passes.
-  const double effectLeft = dryLeft;
-  const double effectRight = dryRight;
-  double preLeft, preRight;
-  delaySamplePairSimd(state->delays[12], state->delays[13], state->ch1, state->ch0, preLeft, preRight);
-  double left = effectLeft + preLeft * state->recycle;
-  double right = effectRight + preRight * state->recycle;
-  for (int index = 0; index < 6; index += 1) {
-    double outLeft, outRight;
-    diffuseSamplePairSimd(state->delays[index * 2], state->delays[index * 2 + 1], left, right, outLeft, outRight);
-    left = outLeft;
-    right = outRight;
-  }
-  state->ch0 = is_finite(left) ? clamp(left, -16.0, 16.0) : 0.0;
-  state->ch1 = is_finite(right) ? clamp(right, -16.0, 16.0) : 0.0;
+  sabrinaRunChains(*state, dryLeft, dryRight);
   state->lastLeft = state->ch0 * state->mix + dryLeft * (1.0 - state->mix);
   state->lastRight = state->ch1 * state->mix + dryRight * (1.0 - state->mix);
   state->lastWet = (state->ch0 + state->ch1) * 0.5;
