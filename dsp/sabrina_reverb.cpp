@@ -183,33 +183,34 @@ double readDelay(const SabrinaDelay& delay, double where) {
   return delay.buffer[before] * (1.0 - mix) + delay.buffer[after] * mix;
 }
 
-// fbm1d is already 0..1, but 4 octaves at persistence 0.5 stay near 0.5
-// (std ~0.15). Parabol's 0..1 map has std ~0.37 and hits both ends every
-// cycle. Stretch FBM around 0.5 so the same Mod Amp moves the delay as far.
+// fbm1d is already 0..1, but 4 octaves at persistence 0.5 stay near 0.5.
+// Stretch FBM around 0.5 so it uses more of the 0..1 range.
 constexpr double kFbmDepth = 2.4;
+// Per-style depth: a plain per-sample multiply on the LFO value in the delay
+// read path. Geometry (lfopercent, period spread) is the same for both styles.
+// Mod Amp 1 = Parabol's sane max (old Mod Amp 0.25); fBm = half its old 0.5 max.
+constexpr double kParabolGain = 0.25;
+constexpr double kFbmGain = 0.7285;
+// lfopercent = Mod Amp * kLfoDepthScale (both styles).
+constexpr double kLfoDepthScale = 0.4;
+// Display axis: fixed linear seconds, 0..kDisplayTimeMaxSeconds.
+constexpr double kDisplayTimeMaxSeconds = 0.45;
 
 double fbmModUni(double time, unsigned int seed) {
-  const double y = (fbm1d(time, 4, 0.5, 1.0, seed) - 0.5) * kFbmDepth + 0.5;
-  if (y < 0.0)
-    return 0.0;
-  if (y > 1.0)
-    return 1.0;
-  return y;
+  return (fbm1d(time, 4, 0.5, 1.0, seed) - 0.5) * kFbmDepth + 0.5;
+}
+
+// Current LFO value with the per-style gain. Audio and display both use this.
+double sabrinaPeekModUni(const SabrinaDelay& delay) {
+  if (delay.lfoStyle == 1) {
+    return fbmModUni(delay.modInc, delay.fbmSeed) * kFbmGain;
+  }
+  return (parabol(delay.modInc) * 0.5 + 0.5) * kParabolGain;
 }
 
 double sabrinaModUni(SabrinaDelay& delay) {
   delay.modInc += delay.modSpeed;
-  if (delay.lfoStyle == 1) {
-    return fbmModUni(delay.modInc, delay.fbmSeed);
-  }
-  return parabol(delay.modInc) * 0.5 + 0.5;
-}
-
-double sabrinaPeekModUni(const SabrinaDelay& delay) {
-  if (delay.lfoStyle == 1) {
-    return fbmModUni(delay.modInc, delay.fbmSeed);
-  }
-  return parabol(delay.modInc) * 0.5 + 0.5;
+  return sabrinaPeekModUni(delay);
 }
 
 double delaySample(SabrinaDelay& delay, double input) {
@@ -259,18 +260,17 @@ void sabrinaModUniPair(SabrinaDelay& delayL, SabrinaDelay& delayR, double& lfoL,
   delayL.modInc += delayL.modSpeed;
   delayR.modInc += delayR.modSpeed;
   if (delayL.lfoStyle == 1 || delayR.lfoStyle == 1) {
-    lfoL = delayL.lfoStyle == 1
-      ? fbmModUni(delayL.modInc, delayL.fbmSeed)
-      : parabol(delayL.modInc) * 0.5 + 0.5;
-    lfoR = delayR.lfoStyle == 1
-      ? fbmModUni(delayR.modInc, delayR.fbmSeed)
-      : parabol(delayR.modInc) * 0.5 + 0.5;
+    lfoL = sabrinaPeekModUni(delayL);
+    lfoR = sabrinaPeekModUni(delayR);
     return;
   }
   const v128_t modInc = wasm_f64x2_make(delayL.modInc, delayR.modInc);
-  const v128_t lfo = wasm_f64x2_add(
-    wasm_f64x2_mul(parabolPairSimd(modInc), wasm_f64x2_splat(0.5)),
-    wasm_f64x2_splat(0.5)
+  const v128_t lfo = wasm_f64x2_mul(
+    wasm_f64x2_add(
+      wasm_f64x2_mul(parabolPairSimd(modInc), wasm_f64x2_splat(0.5)),
+      wasm_f64x2_splat(0.5)
+    ),
+    wasm_f64x2_splat(kParabolGain)
   );
   double lanes[2];
   wasm_v128_store(lanes, lfo);
@@ -410,15 +410,11 @@ void applyDiffusionGeometryPairSimd(
 void applyDelayGeometry(SabrinaState& state) {
   const double maxDelaySize = state.sampleRate * 4.0;
   const double lfoSpeed = ((1.0 - state.smoothedLfoBaseSpeed) * 1.95 + 0.5) * 0.5;
-  // Parabol period spread stays 0..0.25 s. FBM uses a wider spread so Mod Vary
-  // separates the lines; the knob still runs from full spread down to none.
-  const double lfoVariation = (1.0 - state.smoothedLfoVariation) * (state.lfoStyle == 1 ? 1.0 : 0.25);
+  // Same for both styles: depth amp * kLfoDepthScale, period spread (1 - vary) * 1 s.
+  const double lfoVariation = (1.0 - state.smoothedLfoVariation) * 1.0;
   const double diffusionSizeFactor = state.smoothedDiffusionSize * 0.1 + 0.0000001;
   const double sharedFeedback = state.diffusionAmount;
-  // Parabol depth stays amplitude * 0.1. FBM is 4x that so the same Mod Amp
-  // moves the delay about as far.
-  const double ampScale = state.lfoStyle == 1 ? 0.4 : 0.1;
-  const double sharedLfopercent = state.smoothedLfoAmplitude * ampScale;
+  const double sharedLfopercent = state.smoothedLfoAmplitude * kLfoDepthScale;
   static_assert(kDiffusionCount % 2 == 0, "diffusion geometry SIMD kernel processes delay lines in pairs");
   for (int index = 0; index < kDiffusionCount; index += 2) {
     SabrinaDelay& delayA = state.delays[index];
@@ -432,7 +428,7 @@ void applyDelayGeometry(SabrinaState& state) {
   for (int index = kDiffusionCount; index < kDelayCount; index += 1) {
     SabrinaDelay& delay = state.delays[index];
     delay.offset = (maxDelaySize - 2.0) * state.smoothedDelaySize * 0.1 + 1.0;
-    delay.lfopercent = state.smoothedLfoAmplitude * ampScale;
+    delay.lfopercent = state.smoothedLfoAmplitude * kLfoDepthScale;
     initializeMod(delay, lfoSpeed, lfoVariation, state.sampleRate);
   }
 }
@@ -877,21 +873,15 @@ extern "C" int soemdsp_sabrina_reverb_version() {
 }
 
 void sabrinaFillDelay01(const SabrinaState &state, double times[kDelayCount]) {
-  // Linear time. Left is 0. Right is the longest tap this reverb can make, 0.44 s.
-  constexpr double kTimeMax = 4.0 * 0.1 * 1.1;
+  // Linear seconds over a fixed 0..0.45 s axis. Past 0.45 s stays > 1 so the
+  // display can skip that line instead of pinning it to the edge.
   const double sr = state.sampleRate > 1.0 ? state.sampleRate : 1.0;
   for (int i = 0; i < kDelayCount; ++i) {
     const SabrinaDelay &d = state.delays[i];
-    double lfo = sabrinaPeekModUni(d);
-    if (lfo < 0.0)
-      lfo = 0.0;
-    if (lfo > 1.0)
-      lfo = 1.0;
-    double t = d.offset * (1.0 + lfo * d.lfopercent) / sr / kTimeMax;
+    const double lfo = sabrinaPeekModUni(d);
+    double t = d.offset * (1.0 + lfo * d.lfopercent) / sr / kDisplayTimeMaxSeconds;
     if (t < 0.0)
       t = 0.0;
-    if (t > 1.0)
-      t = 1.0;
     times[i] = t;
   }
 }

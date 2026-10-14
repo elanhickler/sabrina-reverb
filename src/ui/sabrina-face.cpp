@@ -402,7 +402,10 @@ void SabrinaWaterfall::drawLine(float x01, float halfPx, int viewW, float r, flo
     const float w = (float)juce::jmax(1, viewW);
     const float pad = 2.f;
     const float reach = halfPx + pad;
-    const float xPx = juce::jlimit(0.f, 1.f, x01) * w;
+    // Fixed 0..0.45 s axis: a line past the right edge is not drawn.
+    if (!(x01 >= 0.f && x01 <= 1.f))
+        return;
+    const float xPx = x01 * w;
     const auto ndc = [w](float px) { return (px / w) * 2.f - 1.f; };
     const float x0 = ndc(xPx - reach);
     const float x1 = ndc(xPx + reach);
@@ -460,7 +463,9 @@ void SabrinaWaterfall::paintLines(juce::Graphics &g)
     const auto r = getLocalBounds().toFloat();
     const float hw = stemWidthPx(juce::jmax(1, getWidth())) * 0.5f;
     auto drawAt = [&](float x01, juce::Colour colour) {
-        const float x = r.getX() + juce::jlimit(0.f, 1.f, x01) * r.getWidth();
+        if (!(x01 >= 0.f && x01 <= 1.f))
+            return; // past the 0..0.45 s axis: not drawn
+        const float x = r.getX() + x01 * r.getWidth();
         g.setColour(colour);
         g.fillRect(x - hw, r.getY(), hw * 2.f, r.getHeight());
     };
