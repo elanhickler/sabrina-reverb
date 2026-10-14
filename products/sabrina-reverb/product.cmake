@@ -1,0 +1,10 @@
+# Sabrina Reverb, product #1. Identity values must never change once shipped.
+set(SE_PRODUCT_NAME "Sabrina Reverb")
+set(SE_PRODUCT_VERSION "0.1.6")
+set(SE_PRODUCT_CLAP_ID "org.soundemote.sabrina-reverb")
+set(SE_PRODUCT_PATCH_EXT ".sabrina")
+set(SE_PRODUCT_PRESET_NS sabrina_patches)
+set(SE_PRODUCT_FORMATS "CLAP VST3 AUV2")
+set(SE_PRODUCT_SOURCES src/ui/sabrina-face.cpp)
+set(SE_PRODUCT_DSP_SOURCES dsp/sabrina_reverb.cpp)
+set(SE_PRODUCT_TESTS tests/golden_render.cpp tests/golden_engine.cpp)

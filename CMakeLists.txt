@@ -7,22 +7,18 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # TODO Remove This before we ship non beta version. Remember
 # the AU rescans only when versions change even if binaries are
-# different.
+# different. Used as every product's BUNDLE_VERSION; the user-facing
+# version comes from each product's own definition.
 string(TIMESTAMP DAY_OF_YEAR "%j")
 string(TIMESTAMP YEAR "%Y")
 math(EXPR PART0 "${YEAR}-2025 + 5")
 math(EXPR PART1 "${DAY_OF_YEAR} + 1")
 
-project(sabrina-reverb-clap VERSION 0.${PART0}.${PART1} LANGUAGES C CXX)
-set(PRODUCT_NAME "Sabrina Reverb")
-# User-facing version (right-click menu and CLAP descriptor). The project()
-# VERSION above changes every day so AU rescans; it is not this number.
-set(PRODUCT_VERSION "0.1.6")
-
+project(soemdsp-sandbox-plugins VERSION 0.${PART0}.${PART1} LANGUAGES C CXX)
 
 option(USE_SANITIZER "Build and link with ASAN" FALSE)
 option(COPY_AFTER_BUILD "Will copy after build" TRUE)
-option(BUILD_SINGLE_ONLY "Only build the one plugin - no seven sines out" FALSE)
+set(SE_PRODUCTS "all" CACHE STRING "Products to build: all, or a ;-list of slugs under products/")
 
 include(cmake/compile-options.cmake)
 
@@ -44,106 +40,22 @@ include(libs/sst/sst-plugininfra/cmake/git-version-functions.cmake)
 version_from_versionfile_or_git()
 message(STATUS "DISPLAY_VERSION=${GIT_IMPLIED_DISPLAY_VERSION}; COMMIT_HASH=${GIT_COMMIT_HASH}; BRANCH=${GIT_BRANCH}")
 
-
 include(cmake/CmakeRC.cmake)
-file(GLOB_RECURSE PATCHES  "products/sabrina-reverb/presets/*.sxsnp")
-cmrc_add_resource_library(${PROJECT_NAME}-patches NAMESPACE sabrina_patches ${PATCHES})
 
 set(JUCE_PATH "${CMAKE_SOURCE_DIR}/libs/JUCE")
 add_subdirectory(libs)
 
-# soemdsp (Parameter / SmootherManager / DirtyUpdater / delay::Reverb)
+# soemdsp plugin support (Parameter / curve / string helpers)
 include(cmake/soemdsp.cmake)
 
-add_library(${PROJECT_NAME}-impl STATIC
-        shell/clap/plugin-clap.cpp
-        shell/clap/plugin-clap-entry-impl.cpp
+include(cmake/add_product.cmake)
 
-        shell/ui/plugin-editor.cpp
-        shell/ui/main-panel.cpp
-        products/sabrina-reverb/src/ui/sabrina-face.cpp
-
-        shell/presets/preset-manager.cpp
-
-        shell/engine/engine.cpp
-        shell/engine/patch.cpp
-
-)
-target_include_directories(${PROJECT_NAME}-impl PUBLIC
-        shell
-        products/sabrina-reverb/src
-        "${SOEMDSP_ROOT}/include"
-)
-# soemdsp plugin Parameter headers need C++20 (std::source_location).
-set_target_properties(${PROJECT_NAME}-impl PROPERTIES
-        CXX_STANDARD 20
-        CXX_STANDARD_REQUIRED ON
-)
-# Important setup variables
-target_compile_definitions(${PROJECT_NAME}-impl PRIVATE
-        PRODUCT_NAME="${PRODUCT_NAME}"
-        PRODUCT_VERSION="${PRODUCT_VERSION}"
-        PATCH_EXTENSION=".sabrina"
-)
-
-if (${BUILD_SINGLE_ONLY})
-    message(STATUS "Building single plugin version only")
-    target_compile_definitions(${PROJECT_NAME}-impl PRIVATE
-            CLAP_PLUGIN_COUNT=1
-    )
-endif()
-
-if (WIN32)
-    message(STATUS "Activating wchar presets")
-    target_compile_definitions(${PROJECT_NAME}-impl PUBLIC USE_WCHAR_PRESET=1 NOMINMAX)
-endif()
-
-target_link_libraries(${PROJECT_NAME}-impl PUBLIC
-        clap
-)
-target_link_libraries(${PROJECT_NAME}-impl PRIVATE
-        simde
-        clap-helpers clap-wrapper-extensions
-        fmt-header-only
-        sst-basic-blocks sst-jucegui sst-cpputils
-        sst-plugininfra
-        sst-plugininfra::filesystem
-        sst-plugininfra::tinyxml
-        sst-plugininfra::strnatcmp
-        sst-plugininfra::patchbase
-        sst-plugininfra::version_information
-        sst::clap_juce_shim sst::clap_juce_shim_headers
-        juce::juce_opengl
-        soemdsp::sabrina
-        soemdsp::plugin_support
-        magic_enum::magic_enum
-        ${PROJECT_NAME}-patches
-)
-
-make_clapfirst_plugins(
-        TARGET_NAME ${PROJECT_NAME}
-        IMPL_TARGET ${PROJECT_NAME}-impl
-
-        OUTPUT_NAME "${PRODUCT_NAME}"
-
-        ENTRY_SOURCE shell/clap/plugin-clap-entry.cpp
-
-        BUNDLE_IDENTIFER "org.soundemote.sabrina-reverb"
-        BUNDLE_VERSION ${PROJECT_VERSION}
-
-        COPY_AFTER_BUILD ${COPY_AFTER_BUILD}
-
-        PLUGIN_FORMATS CLAP VST3 AUV2
-
-        ASSET_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PROJECT_NAME}_assets
-
-        # You can add a target-per-standalone you want. Syntax here is
-        #   target-postfix output-name clap-id
-        # This allows you to make multiple standalones from a multi-plugin clap
-        STANDALONE_CONFIGURATIONS
-            standalone "${PRODUCT_NAME}" "org.soundemote.sabrina-reverb"
-
-        # STANDALONE_MACOS_ICON "${CMAKE_SOURCE_DIR}/products/sabrina-reverb/assets/Icon.icns"
-)
-
-add_subdirectory(tests)
+file(GLOB _se_product_dirs LIST_DIRECTORIES true "${CMAKE_SOURCE_DIR}/products/*")
+foreach (_dir ${_se_product_dirs})
+    if (IS_DIRECTORY "${_dir}" AND EXISTS "${_dir}/product.cmake")
+        get_filename_component(_slug "${_dir}" NAME)
+        if ("${SE_PRODUCTS}" STREQUAL "all" OR "${_slug}" IN_LIST SE_PRODUCTS)
+            add_product(${_slug})
+        endif()
+    endif()
+endforeach()

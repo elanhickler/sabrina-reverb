@@ -11,7 +11,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TARGET_NAME: sabrina-reverb-clap
+  TARGET_NAME: sabrina-reverb
   PLUGIN_NAME: Sabrina Reverb
   
 defaults:

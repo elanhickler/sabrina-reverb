@@ -1,15 +1,7 @@
-# Vendored Sabrina kernel (products/sabrina-reverb/dsp/sabrina_reverb.cpp + dsp-common/include/soemdsp).
-# No soemdsp-sandbox checkout required.
+# soemdsp plugin support (Parameter / curve / string helpers), shared by all
+# products. Product DSP kernels are built per product in add_product.cmake.
 
-set(SABRINA_SRC "${CMAKE_SOURCE_DIR}/products/sabrina-reverb/dsp/sabrina_reverb.cpp")
-if (NOT EXISTS "${SABRINA_SRC}")
-    message(FATAL_ERROR "products/sabrina-reverb/dsp/sabrina_reverb.cpp missing")
-endif()
-
-add_library(soemdsp-sabrina STATIC "${SABRINA_SRC}")
-add_library(soemdsp::sabrina ALIAS soemdsp-sabrina)
-
-set(SOEMDSP_ROOT "${CMAKE_SOURCE_DIR}/libs/soemdsp" CACHE PATH "Path to soundemote/soemdsp")
+set(SOEMDSP_ROOT "${CMAKE_SOURCE_DIR}/libs/soemdsp" CACHE PATH "Path to soemdsp")
 if (NOT EXISTS "${SOEMDSP_ROOT}/include/soemdsp/plugin/Parameter.hpp")
     message(FATAL_ERROR
         "soemdsp plugin headers not found at ${SOEMDSP_ROOT}. "
@@ -25,7 +17,6 @@ FetchContent_Declare(magic_enum
 )
 FetchContent_MakeAvailable(magic_enum)
 
-# soemdsp plugin Parameter / curve / string helpers (not the sandbox math lib).
 add_library(soemdsp-plugin-support STATIC
     "${SOEMDSP_ROOT}/include/soemdsp/utility/src/curve_functions.cpp"
     "${SOEMDSP_ROOT}/include/soemdsp/utility/src/operations_string.cpp"
@@ -42,19 +33,3 @@ target_link_libraries(soemdsp-plugin-support PUBLIC
     magic_enum::magic_enum
     fmt-header-only
 )
-
-target_include_directories(soemdsp-sabrina PUBLIC
-    "${CMAKE_SOURCE_DIR}/runtime"
-    "${CMAKE_SOURCE_DIR}/runtime/wasm_simd128_shim"
-    "${CMAKE_SOURCE_DIR}/dsp-common/include"
-)
-
-target_compile_definitions(soemdsp-sabrina PUBLIC NOMINMAX)
-target_compile_features(soemdsp-sabrina PUBLIC cxx_std_17)
-
-if (MSVC)
-    target_compile_options(soemdsp-sabrina PRIVATE
-        /FI"${CMAKE_SOURCE_DIR}/runtime/msvc_builtins.h"
-        /wd4244 /wd4267 /wd4305
-    )
-endif()
