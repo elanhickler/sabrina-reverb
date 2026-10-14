@@ -31,27 +31,18 @@ void Engine::syncSabrinaParamsFromPatch()
     if (sabrinaHandle <= 0)
         return;
 
-    auto &p = patch.sabrina;
     // Host/CLAP knobs carry real DSP numbers. soemdsp Parameter stores
     // the same mapped value and a linear copy for 0..1 modulation.
-    soem.mix.setMapped(p.mix.value);
-    soem.diffusionSize.setMapped(p.diffusionSize.value);
-    soem.diffusionAmount.setMapped(p.diffusionAmount.value);
-    soem.delaySize.setMapped(p.delaySize.value);
-    soem.recycle.setMapped(p.recycle.value);
-    soem.lfoAmplitude.setMapped(p.lfoAmplitude.value);
-    soem.lfoBaseSpeed.setMapped(p.lfoBaseSpeed.value);
-    soem.lfoVariation.setMapped(p.lfoVariation.value);
-    soem.lfoStyle.setMapped(p.lfoStyle.value);
-    soem.seed.setMapped(p.seed.value);
-    soem.amplitude.setMapped(p.amplitude.value);
+    for (size_t i = 0; i < se::product::numParams; ++i)
+        soem[i].setMapped(patch.param(i).value);
 
+    namespace pi = se::product::param_index;
     soemdsp_sabrina_reverb_set_params(
-        sabrinaHandle, soem.mix.getDspDouble(), soem.diffusionSize.getDspDouble(),
-        soem.diffusionAmount.getDspDouble(), soem.delaySize.getDspDouble(),
-        soem.recycle.getDspDouble(), soem.lfoAmplitude.getDspDouble(),
-        soem.lfoBaseSpeed.getDspDouble(), soem.lfoVariation.getDspDouble(),
-        soem.seed.getDspDouble(), soem.lfoStyle.getDspDouble());
+        sabrinaHandle, soem[pi::mix].getDspDouble(), soem[pi::diffusionSize].getDspDouble(),
+        soem[pi::diffusionAmount].getDspDouble(), soem[pi::delaySize].getDspDouble(),
+        soem[pi::recycle].getDspDouble(), soem[pi::lfoAmplitude].getDspDouble(),
+        soem[pi::lfoBaseSpeed].getDspDouble(), soem[pi::lfoVariation].getDspDouble(),
+        soem[pi::seed].getDspDouble(), soem[pi::lfoStyle].getDspDouble());
 }
 
 void Engine::setSampleRate(double sr)
@@ -115,7 +106,7 @@ void Engine::process(const clap_output_events_t *outq, const float *const *input
 
     const bool hasInput = inputChannels != nullptr && inputChannelCount > 0 &&
                           inputChannels[0] != nullptr && inputFrameCount > 0;
-    const float amp = static_cast<float>(soem.amplitude.getDspDouble());
+    const float amp = static_cast<float>(soem[se::product::param_index::amplitude].getDspDouble());
 
     // Planck 1e-7 — same as sabrina_reverb.cpp / soemdsp SilenceDetector.
     constexpr double kPlanck = 1.0e-7;

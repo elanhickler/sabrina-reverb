@@ -94,6 +94,26 @@ template <typename E> uint64_t renderGolden(E &engine, float &peak)
 }
 } // namespace
 
+// Shipped identity of Sabrina Reverb. Must never change (DAW sessions and
+// presets store these).
+bool seIdentityOk(std::string &why)
+{
+    using soundemote::sabrina::Patch;
+    if (std::string(Patch::id) != "org.soundemote.sabrina-reverb")
+        return why = "clap/patch id changed", false;
+    if (Patch::patchVersion != 2)
+        return why = "patchVersion changed", false;
+    if (std::string(se::product::patchExtension) != ".sabrina")
+        return why = "preset extension changed", false;
+    Patch p;
+    if (p.params.size() != 11)
+        return why = "param count changed", false;
+    for (uint32_t id = 500; id <= 510; ++id)
+        if (p.paramMap.find(id) == p.paramMap.end())
+            return why = "missing param id " + std::to_string(id), false;
+    return true;
+}
+
 uint64_t seGoldenRenderHash(float &peak)
 {
     peak = 0.f;

@@ -11,6 +11,16 @@
 #include <string>
 
 uint64_t seGoldenRenderHash(float &peak);
+bool seIdentityOk(std::string &why);
+
+TEST_CASE("Sabrina identity is unchanged", "[identity]")
+{
+    std::string why;
+    const bool ok = seIdentityOk(why);
+    INFO(why);
+    REQUIRE(ok);
+}
+
 
 TEST_CASE("Sabrina golden render is bit-identical", "[golden]")
 {

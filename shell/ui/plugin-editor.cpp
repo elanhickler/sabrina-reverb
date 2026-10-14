@@ -426,40 +426,41 @@ void PluginEditor::setScreenSize(int titleHeights)
 namespace
 {
 constexpr const char *kPresetKind = "module-settings";
-constexpr const char *kPresetType = "reverbEffect";
+constexpr const char *kPresetType = se::product::sandboxModule;
 
-float jsonParamNumber(const juce::var &v, float fallback)
+float jsonParamNumber(const juce::var &v, float fallback, const se::product::ParamDesc &d)
 {
     if (v.isVoid() || v.isUndefined())
         return fallback;
     if (v.isString())
     {
         auto s = v.toString().trim().toLowerCase();
-        if (s == "parabol")
-            return 0.f;
-        if (s == "fbm")
-            return 1.f;
+        for (int i = 0; i < d.numChoices; ++i)
+            if (s == juce::String(d.choices[i].label).toLowerCase())
+                return (float)d.choices[i].value;
         return s.getFloatValue();
     }
     return (float)(double)v;
+}
+
+bool isIntegerParam(const se::product::ParamDesc &d)
+{
+    return d.type == se::product::ParamType::Integer || d.type == se::product::ParamType::Choice;
 }
 } // namespace
 
 juce::String PluginEditor::jsonPresetFromPatch() const
 {
     auto *params = new juce::DynamicObject();
-    const auto &s = patchCopy.sabrina;
-    params->setProperty("mix", s.mix.value);
-    params->setProperty("diffusionSize", s.diffusionSize.value);
-    params->setProperty("diffusionAmount", s.diffusionAmount.value);
-    params->setProperty("delaySize", s.delaySize.value);
-    params->setProperty("recycle", s.recycle.value);
-    params->setProperty("lfoAmplitude", s.lfoAmplitude.value);
-    params->setProperty("lfoBaseSpeed", s.lfoBaseSpeed.value);
-    params->setProperty("lfoVariation", s.lfoVariation.value);
-    params->setProperty("lfoStyle", (int)std::lround(s.lfoStyle.value));
-    params->setProperty("seed", (int)std::lround(s.seed.value));
-    params->setProperty("amplitude", s.amplitude.value);
+    for (size_t i = 0; i < se::product::numParams; ++i)
+    {
+        const auto &d = se::product::params[i];
+        const auto &p = patchCopy.param(i);
+        if (isIntegerParam(d))
+            params->setProperty(d.key, (int)std::lround(p.value));
+        else
+            params->setProperty(d.key, p.value);
+    }
 
     auto *root = new juce::DynamicObject();
     root->setProperty("soundemote", kPresetKind);
@@ -480,30 +481,20 @@ bool PluginEditor::applyJsonPreset(const juce::String &text)
     if (parsed["soundemote"].toString() != kPresetKind)
         return false;
     const auto type = parsed["type"].toString();
-    if (type != kPresetType && type != "Sabrina Reverb")
+    if (type != kPresetType && type != PRODUCT_NAME)
         return false;
     auto params = parsed["params"];
     auto *obj = params.getDynamicObject();
     if (!obj)
         return false;
 
-    auto &s = patchCopy.sabrina;
-    auto set = [this, obj](Param &p, const char *key)
+    for (size_t i = 0; i < se::product::numParams; ++i)
     {
-        if (obj->hasProperty(key))
-            setAndSendParamValue(p.meta.id, jsonParamNumber(obj->getProperty(key), p.value));
-    };
-    set(s.mix, "mix");
-    set(s.diffusionSize, "diffusionSize");
-    set(s.diffusionAmount, "diffusionAmount");
-    set(s.delaySize, "delaySize");
-    set(s.recycle, "recycle");
-    set(s.lfoAmplitude, "lfoAmplitude");
-    set(s.lfoBaseSpeed, "lfoBaseSpeed");
-    set(s.lfoVariation, "lfoVariation");
-    set(s.lfoStyle, "lfoStyle");
-    set(s.seed, "seed");
-    set(s.amplitude, "amplitude");
+        const auto &d = se::product::params[i];
+        auto &p = patchCopy.param(i);
+        if (obj->hasProperty(d.key))
+            setAndSendParamValue(p.meta.id, jsonParamNumber(obj->getProperty(d.key), p.value, d));
+    }
     auto *root = parsed.getDynamicObject();
     if (root && root->hasProperty("alias"))
         setModuleTitle(root->getProperty("alias").toString());

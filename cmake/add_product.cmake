@@ -1,19 +1,17 @@
 # add_product(<slug>)
 #
 # Builds one product from the shared shell/ code plus products/<slug>/.
-# The product describes itself in products/<slug>/product.cmake, which sets:
-#   SE_PRODUCT_NAME          user-facing name ("Sabrina Reverb"), also the bundle name
-#   SE_PRODUCT_VERSION       user-facing version (right-click menu, CLAP descriptor)
-#   SE_PRODUCT_CLAP_ID       CLAP id / bundle identifier (never change once shipped)
-#   SE_PRODUCT_PATCH_EXT     preset extension (".sabrina")
-#   SE_PRODUCT_PRESET_NS     cmrc namespace for factory presets
-#   SE_PRODUCT_FORMATS       e.g. "CLAP VST3 AUV2"
+# Identity, params and layout come from products/<slug>/product.json (see
+# cmake/product_json.cmake, which also checks params.lock and generates
+# product_generated.h). products/<slug>/product.cmake only lists sources:
 #   SE_PRODUCT_SOURCES       product C++ (face, adapter), relative to products/<slug>/
 #   SE_PRODUCT_DSP_SOURCES   kernel C++ (vendored sandbox native module), relative
 #   SE_PRODUCT_TESTS         product test sources, relative (optional)
 #
 # Targets: <slug>-dsp, <slug>-impl, <slug>_clap / _vst3 / _auv2 / _standalone,
 #          <slug>_all, <slug>-tests. Assets land in build/<slug>_assets.
+
+include(${CMAKE_CURRENT_LIST_DIR}/product_json.cmake)
 
 set(SE_SHELL_SOURCES
         shell/clap/plugin-clap.cpp
@@ -28,9 +26,10 @@ set(SE_SHELL_SOURCES
 function(add_product slug)
     set(_pdir "${CMAKE_SOURCE_DIR}/products/${slug}")
     unset(SE_PRODUCT_TESTS)
+    unset(SE_PRODUCT_SOURCES)
     include("${_pdir}/product.cmake")
-    foreach (_v SE_PRODUCT_NAME SE_PRODUCT_VERSION SE_PRODUCT_CLAP_ID SE_PRODUCT_PATCH_EXT
-                SE_PRODUCT_PRESET_NS SE_PRODUCT_FORMATS SE_PRODUCT_DSP_SOURCES)
+    se_load_product(${slug})
+    foreach (_v SE_PRODUCT_DSP_SOURCES)
         if (NOT DEFINED ${_v})
             message(FATAL_ERROR "products/${slug}/product.cmake must set ${_v}")
         endif()
@@ -67,6 +66,7 @@ function(add_product slug)
     target_include_directories(${slug}-impl PUBLIC
             "${CMAKE_SOURCE_DIR}/shell"
             "${_pdir}/src"
+            "${SE_PRODUCT_GENERATED_DIR}"
             "${SOEMDSP_ROOT}/include"
     )
     # soemdsp plugin Parameter headers need C++20 (std::source_location).

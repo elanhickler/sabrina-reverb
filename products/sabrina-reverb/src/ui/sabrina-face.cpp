@@ -646,19 +646,13 @@ SabrinaFace::SabrinaFace(PluginEditor &e) : editor(e)
         const char *unit;
         const char *faceLabel;
     };
-    const Row rows[] = {
-        {e.patchCopy.sabrina.mix.meta.id, "%", nullptr},
-        {e.patchCopy.sabrina.diffusionSize.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.diffusionAmount.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.delaySize.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.recycle.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.lfoAmplitude.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.lfoBaseSpeed.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.lfoVariation.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.lfoStyle.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.seed.meta.id, "", nullptr},
-        {e.patchCopy.sabrina.amplitude.meta.id, "", nullptr},
-    };
+    // One slider per layout entry from product.json, in that order.
+    std::vector<Row> rows;
+    for (size_t i = 0; i < se::product::numLayout; ++i)
+    {
+        const auto &d = se::product::params[se::product::layoutOrder[i]];
+        rows.push_back({d.id, d.unit, nullptr});
+    }
     for (auto &row : rows)
     {
         sliders.push_back(std::make_unique<SabrinaSlider>(

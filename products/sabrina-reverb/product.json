@@ -1,0 +1,31 @@
+{
+  "slug": "sabrina-reverb",
+  "name": "Sabrina Reverb",
+  "version": "0.2.0",
+  "clapId": "org.soundemote.sabrina-reverb",
+  "vendor": "Soundemote",
+  "url": "https://soundemote.com/sabrinareverb",
+  "patchVersion": 2,
+  "patchExtension": ".sabrina",
+  "vendorFolder": "SabrinaReverb",
+  "presetNamespace": "sabrina_patches",
+  "sandboxModule": "reverbEffect",
+  "formats": ["CLAP", "VST3", "AUV2"],
+  "params": [
+    { "key": "mix",             "id": 500, "name": "Mix",              "group": "Main",      "type": "percent", "min": 0, "max": 1,        "default": 0.43,  "unit": "%" },
+    { "key": "diffusionSize",   "id": 501, "name": "Diffusion Size",   "group": "Diffusion", "type": "unit",    "min": 0, "max": 1,        "default": 0.35 },
+    { "key": "diffusionAmount", "id": 502, "name": "Diffusion Amount", "group": "Diffusion", "type": "unit",    "min": 0, "max": 1,        "default": 0.70 },
+    { "key": "delaySize",       "id": 503, "name": "Delay Time",       "group": "Echo",      "type": "unit",    "min": 0, "max": 1,        "default": 0.02 },
+    { "key": "recycle",         "id": 504, "name": "Recycle",          "group": "Echo",      "type": "unit",    "min": 0, "max": 1,        "default": 0.70 },
+    { "key": "lfoAmplitude",    "id": 505, "name": "Mod(~)Amp",        "group": "Mod",       "type": "unit",    "min": 0, "max": 1,        "default": 0.07 },
+    { "key": "lfoBaseSpeed",    "id": 506, "name": "Mod(~)Speed",      "group": "Mod",       "type": "unit",    "min": 0, "max": 1,        "default": 0.83 },
+    { "key": "lfoVariation",    "id": 507, "name": "Mod(~)Vary",       "group": "Mod",       "type": "unit",    "min": 0, "max": 1,        "default": 0.001 },
+    { "key": "lfoStyle",        "id": 508, "name": "Mod(~)Style",      "group": "Mod",       "type": "choice",  "min": 0, "max": 1,        "default": 0, "choices": ["Parabol", "FBM"] },
+    { "key": "seed",            "id": 509, "name": "Seed",             "group": "Mod",       "type": "int",     "min": 0, "max": 16777215, "default": 0 },
+    { "key": "amplitude",       "id": 510, "name": "Amplitude",        "group": "Main",      "type": "unit",    "min": 0, "max": 1,        "default": 1.0 }
+  ],
+  "layout": {
+    "order": ["mix", "diffusionSize", "diffusionAmount", "delaySize", "recycle",
+              "lfoAmplitude", "lfoBaseSpeed", "lfoVariation", "lfoStyle", "seed", "amplitude"]
+  }
+}

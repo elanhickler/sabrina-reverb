@@ -32,7 +32,7 @@ struct Engine
     Patch patch;
 
     int sabrinaHandle{0};
-    SabrinaSoemParams soem;
+    SoemParams soem;
     void syncSabrinaParamsFromPatch();
 
     Engine();

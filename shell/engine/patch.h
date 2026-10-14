@@ -28,6 +28,9 @@
 #include "sst/basic-blocks/params/ParamMetadata.h"
 #include "sst/basic-blocks/dsp/Lag.h"
 #include "sst/plugininfra/patch-support/patch_base.h"
+#include <memory>
+#include <string>
+#include "product_generated.h"
 
 namespace soundemote::sabrina
 {
@@ -64,8 +67,8 @@ struct Param : pats::ParamBase, sst::cpputils::active_set_overlay<Param>::partic
 
 struct Patch : pats::PatchBase<Patch, Param>
 {
-    static constexpr uint32_t patchVersion{2};
-    static constexpr const char *id{"org.soundemote.sabrina-reverb"};
+    static constexpr uint32_t patchVersion{se::product::patchVersion};
+    static constexpr const char *id{se::product::clapId};
 
     static constexpr uint32_t floatFlags{CLAP_PARAM_IS_AUTOMATABLE};
     static constexpr uint32_t boolFlags{CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_STEPPED};
@@ -96,9 +99,11 @@ struct Patch : pats::PatchBase<Patch, Param>
     Patch() : pats::PatchBase<Patch, Param>()
 
     {
-        auto pushParams = [this](auto &from) { this->pushMultipleParams(from.params()); };
-
-        pushParams(sabrina);
+        productParams.reserve(se::product::numParams);
+        for (const auto &d : se::product::params)
+            productParams.push_back(std::make_unique<Param>(mdFromDesc(d)));
+        for (auto &p : productParams)
+            this->pushSingleParam(p.get());
 
         std::sort(params.begin(), params.end(),
                   [](const Param *a, const Param *b)
@@ -119,81 +124,43 @@ struct Patch : pats::PatchBase<Patch, Param>
                   });
     }
 
-    // Host-facing params = soemdsp-sandbox reverbEffect keys.
-    struct SabrinaNode
+    // Host-facing params come from the product's generated descriptor table
+    // (products/<slug>/product.json). Ids are frozen by params.lock.
+    static md_t mdFromDesc(const se::product::ParamDesc &d)
     {
-        static constexpr uint32_t idBase{500};
-
-        SabrinaNode()
-            : mix(floatMd()
-                      .asPercent()
-                      .withDefault(0.43f)
-                      .withName("Mix")
-                      .withGroupName("Main")
-                      .withID(id(0))),
-              diffusionSize(unit01(0.35f)
-                                .withName("Diffusion Size")
-                                .withGroupName("Diffusion")
-                                .withID(id(1))),
-              diffusionAmount(unit01(0.70f)
-                                  .withName("Diffusion Amount")
-                                  .withGroupName("Diffusion")
-                                  .withID(id(2))),
-              delaySize(unit01(0.02f)
-                            .withName("Delay Time")
-                            .withGroupName("Echo")
-                            .withID(id(3))),
-              recycle(unit01(0.70f)
-                          .withName("Recycle")
-                          .withGroupName("Echo")
-                          .withID(id(4))),
-              lfoAmplitude(unit01(0.07f)
-                               .withName("Mod(~)Amp")
-                               .withGroupName("Mod")
-                               .withID(id(5))),
-              lfoBaseSpeed(unit01(0.83f)
-                               .withName("Mod(~)Speed")
-                               .withGroupName("Mod")
-                               .withID(id(6))),
-              lfoVariation(unit01(0.001f)
-                               .withName("Mod(~)Vary")
-                               .withGroupName("Mod")
-                               .withID(id(7))),
-              lfoStyle(intMd()
-                           .withRange(0, 1)
-                           .withDefault(0)
-                           .withUnorderedMapFormatting({{0, "Parabol"}, {1, "FBM"}})
-                           .withName("Mod(~)Style")
-                           .withGroupName("Mod")
-                           .withID(id(8))),
-              seed(intMd()
-                       .withRange(0, 16777215)
-                       .withDefault(0)
-                       .withName("Seed")
-                       .withGroupName("Mod")
-                       .withID(id(9))),
-              amplitude(unit01(1.f)
-                            .withName("Amplitude")
-                            .withGroupName("Main")
-                            .withID(id(10)))
+        using T = se::product::ParamType;
+        md_t m;
+        switch (d.type)
         {
-        }
-
-        std::string name() const { return "Sabrina"; }
-        uint32_t id(int f) const { return idBase + f; }
-
-        Param mix, diffusionSize, diffusionAmount, delaySize, recycle, lfoAmplitude, lfoBaseSpeed,
-            lfoVariation, lfoStyle, seed, amplitude;
-
-        std::vector<Param *> params()
+        case T::Percent:
+            m = floatMd().asPercent().withDefault(d.defFloat);
+            break;
+        case T::Unit:
+            m = unitRange(d.defFloat, (float)d.min, (float)d.max);
+            break;
+        case T::Integer:
+            m = intMd().withRange((float)d.min, (float)d.max).withDefault(d.defFloat);
+            break;
+        case T::Choice:
         {
-            return {&mix,          &diffusionSize, &diffusionAmount, &delaySize, &recycle,
-                    &lfoAmplitude, &lfoBaseSpeed,  &lfoVariation,    &lfoStyle,  &seed,
-                    &amplitude};
+            std::unordered_map<int, std::string> labels;
+            for (int i = 0; i < d.numChoices; ++i)
+                labels[d.choices[i].value] = d.choices[i].label;
+            m = intMd()
+                    .withRange((float)d.min, (float)d.max)
+                    .withDefault(d.defFloat)
+                    .withUnorderedMapFormatting(labels);
+            break;
         }
-    };
+        }
+        return m.withName(d.name).withGroupName(d.group).withID(d.id);
+    }
 
-    SabrinaNode sabrina;
+    // One Param per descriptor row, in table order (index = param_index::<key>).
+    std::vector<std::unique_ptr<Param>> productParams;
+
+    Param &param(size_t index) { return *productParams[index]; }
+    const Param &param(size_t index) const { return *productParams[index]; }
 
     char name[256]{"Init"};
 

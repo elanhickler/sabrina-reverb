@@ -1,0 +1,15 @@
+# Shipped host parameter ids. Hosts store automation and presets by id, so a
+# line here must never change or disappear. New params get a new id and a new
+# line. Checked at configure time by cmake/product_json.cmake.
+# id key type
+500 mix percent
+501 diffusionSize unit
+502 diffusionAmount unit
+503 delaySize unit
+504 recycle unit
+505 lfoAmplitude unit
+506 lfoBaseSpeed unit
+507 lfoVariation unit
+508 lfoStyle choice
+509 seed int
+510 amplitude unit
