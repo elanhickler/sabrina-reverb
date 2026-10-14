@@ -216,7 +216,7 @@ double sabrinaModUni(SabrinaDelay& delay) {
 double delaySample(SabrinaDelay& delay, double input) {
   const double safeInput = is_finite(input) ? input : 0.0;
   const double lfo = sabrinaModUni(delay);
-  const double readPosition = delay.driver - delay.offset - delay.offset * lfo * delay.lfopercent;
+  const double readPosition = delay.driver - delay.offset + delay.offset * lfo * delay.lfopercent; // Walter: delay = offset*(1 - lfo*pct) + 1
   delay.driver = (delay.driver + 1) % kMaxDelaySamples;
   const double delayed = readDelay(delay, readPosition);
   delay.buffer[delay.driver] = static_cast<float>(safeInput);
@@ -226,7 +226,7 @@ double delaySample(SabrinaDelay& delay, double input) {
 double diffuseSample(SabrinaDelay& delay, double input) {
   const double safeInput = is_finite(input) ? input : 0.0;
   const double lfo = sabrinaModUni(delay);
-  const double readPosition = delay.driver - delay.offset - delay.offset * lfo * delay.lfopercent;
+  const double readPosition = delay.driver - delay.offset + delay.offset * lfo * delay.lfopercent; // Walter: delay = offset*(1 - lfo*pct) + 1
   delay.driver = (delay.driver + 1) % kMaxDelaySamples;
   const double delayed = readDelay(delay, readPosition);
   delay.buffer[delay.driver] = static_cast<float>(clamp((0.0 - safeInput) - delayed * delay.feedback, -16.0, 16.0));
@@ -289,7 +289,7 @@ void delaySamplePairSimd(SabrinaDelay& delayL, SabrinaDelay& delayR, double inpu
   const v128_t offset = wasm_f64x2_make(delayL.offset, delayR.offset);
   const v128_t lfopercent = wasm_f64x2_make(delayL.lfopercent, delayR.lfopercent);
   const v128_t driver = wasm_f64x2_make(static_cast<double>(delayL.driver), static_cast<double>(delayR.driver));
-  const v128_t readPosition = wasm_f64x2_sub(driver, wasm_f64x2_add(offset, wasm_f64x2_mul(wasm_f64x2_mul(offset, lfo), lfopercent)));
+  const v128_t readPosition = wasm_f64x2_add(wasm_f64x2_sub(driver, offset), wasm_f64x2_mul(wasm_f64x2_mul(offset, lfo), lfopercent));
   double readPositionLanes[2];
   wasm_v128_store(readPositionLanes, readPosition);
 
@@ -316,7 +316,7 @@ void diffuseSamplePairSimd(SabrinaDelay& delayL, SabrinaDelay& delayR, double in
   const v128_t offset = wasm_f64x2_make(delayL.offset, delayR.offset);
   const v128_t lfopercent = wasm_f64x2_make(delayL.lfopercent, delayR.lfopercent);
   const v128_t driver = wasm_f64x2_make(static_cast<double>(delayL.driver), static_cast<double>(delayR.driver));
-  const v128_t readPosition = wasm_f64x2_sub(driver, wasm_f64x2_add(offset, wasm_f64x2_mul(wasm_f64x2_mul(offset, lfo), lfopercent)));
+  const v128_t readPosition = wasm_f64x2_add(wasm_f64x2_sub(driver, offset), wasm_f64x2_mul(wasm_f64x2_mul(offset, lfo), lfopercent));
   double readPositionLanes[2];
   wasm_v128_store(readPositionLanes, readPosition);
 
@@ -410,8 +410,8 @@ void applyDiffusionGeometryPairSimd(
 void applyDelayGeometry(SabrinaState& state) {
   const double maxDelaySize = state.sampleRate * 4.0;
   const double lfoSpeed = ((1.0 - state.smoothedLfoBaseSpeed) * 1.95 + 0.5) * 0.5;
-  // Same for both styles: depth amp * kLfoDepthScale, period spread (1 - vary) * 1 s.
-  const double lfoVariation = (1.0 - state.smoothedLfoVariation) * 1.0;
+  // Same for both styles: depth amp * kLfoDepthScale, period spread (1 - vary) * 0.25 s (Walter).
+  const double lfoVariation = (1.0 - state.smoothedLfoVariation) * 0.25;
   const double diffusionSizeFactor = state.smoothedDiffusionSize * 0.1 + 0.0000001;
   const double sharedFeedback = state.diffusionAmount;
   const double sharedLfopercent = state.smoothedLfoAmplitude * kLfoDepthScale;
@@ -879,7 +879,7 @@ void sabrinaFillDelay01(const SabrinaState &state, double times[kDelayCount]) {
   for (int i = 0; i < kDelayCount; ++i) {
     const SabrinaDelay &d = state.delays[i];
     const double lfo = sabrinaPeekModUni(d);
-    double t = d.offset * (1.0 + lfo * d.lfopercent) / sr / kDisplayTimeMaxSeconds;
+    double t = (d.offset * (1.0 - lfo * d.lfopercent) + 1.0) / sr / kDisplayTimeMaxSeconds; // same delay the audio reads
     if (t < 0.0)
       t = 0.0;
     times[i] = t;
