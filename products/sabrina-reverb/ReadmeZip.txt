@@ -1,5 +1,5 @@
 Sabrina Reverb
-Source: https://github.com/soundemote/sabrina-reverb
+Source: https://github.com/elanhickler/sabrina-reverb
 
 Original Sabrina reverb by Walter Hackett.
 
@@ -38,4 +38,4 @@ Linux
 - CLAP → `~/.clap/` or `/usr/lib/clap/`
 - VST3 → `~/.vst3/` or `/usr/lib/vst3/`
 
-If you have feedback ideas etc open a github issue on soundemote/sabrina-reverb.
+If you have feedback ideas etc open a github issue on elanhickler/sabrina-reverb.

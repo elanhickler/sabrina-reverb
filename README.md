@@ -18,7 +18,7 @@ Start here:
 | Path | What it is |
 | --- | --- |
 | [`reference/walter-original-vst/`](reference/walter-original-vst/) | Walter's original Sabrina VST (`Sabrina.cpp`, `Sabrina.h`) |
-| [soemdsp `delay/`](https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay) | Soundemote OOP port (`ModulatedDelay`, `Reverb`) |
+| [soemdsp `delay/`](https://github.com/elanhickler/soemdsp/tree/main/include/soemdsp/delay) | Soundemote OOP port (`ModulatedDelay`, `Reverb`) |
 | [`reference/README.md`](reference/README.md) | How these relate to the shipping DSP |
 
 The plugin **does not compile** those reference files. The live kernel is

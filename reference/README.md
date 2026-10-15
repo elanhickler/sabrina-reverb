@@ -20,7 +20,7 @@ narrative of the algorithm, not as a drop-in compile unit.
 
 Soundemote's OOP / Wire-parameter port lives in soemdsp:
 
-https://github.com/soundemote/soemdsp/tree/main/include/soemdsp/delay
+https://github.com/elanhickler/soemdsp/tree/main/include/soemdsp/delay
 
 (`ModulatedDelay`, `Reverb`). That is the source of truth; it is not duplicated
 here.
